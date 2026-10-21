@@ -1,3 +1,4 @@
+from agent.resources import example_limit
 import json
 from datetime import datetime
 
@@ -19,6 +20,36 @@ def extract_reply(res: str) -> str:
     if match:
         return match.group(1).strip()
     return res
+
+
+def stream_reply(chunks):
+    buffer = ""
+    started = False
+    closing = "</reply>"
+    try:
+        for chunk in chunks:
+            buffer += chunk
+            if not started:
+                position = buffer.find("<reply>")
+                if position < 0:
+                    continue
+                started = True
+                buffer = buffer[position + len("<reply>"):]
+            position = buffer.find(closing)
+            if position >= 0:
+                if position:
+                    yield buffer[:position]
+                return
+            keep = len(closing) - 1
+            if len(buffer) > keep:
+                yield buffer[:-keep]
+                buffer = buffer[-keep:]
+        if buffer:
+            yield buffer
+    finally:
+        close = getattr(chunks, "close", None)
+        if close:
+            close()
 
 
 class GenerationAgent:
@@ -44,8 +75,8 @@ class GenerationAgent:
         self.interviewee = interviewee
         self.begin = datetime.now()
         self.final_prompt_template = read_prompt("roleplay_generate")
-        # self.candidate_prompt_template = read_prompt("professional_generate")
-        # self.candidate_prompt_template2 = read_prompt("roleplay2_generate")
+
+
         self.suggestion = None
         self.model = model
         self.progress = progress
@@ -69,7 +100,7 @@ class GenerationAgent:
 
         examples = []
         num = 1
-        for example in example_dataset:
+        for example in example_dataset[:example_limit()]:
             examples.append(
                 example_prompt_template.format(
                     description=example["description"],
@@ -87,7 +118,7 @@ class GenerationAgent:
         self.examples = "\n\n".join(examples)
 
     def get_prompt(self):
-        messages = self.chat_history.get_message()
+        messages = self.chat_history.get_message()[-20:]
         if len(messages) > 0:
             current_response = messages[-1]['content']
             chat_history = messages[:-1]
@@ -110,7 +141,7 @@ class GenerationAgent:
             interviewee=self.interviewee_name,
             user_background=self.background_info,
             tone=self.tone,
-            review_history=self.format_chat_history(self.review_history.get_message()),
+            review_history=self.format_chat_history(self.review_history.get_message()[-10:]),
             domain=self.distilled_tree.domain,
             examples=self.examples,
             distilled_tree=self.readable_tree,
@@ -120,36 +151,20 @@ class GenerationAgent:
             date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
 
-    def generate_question(self):
+    def generate_question(self, stream=False):
         prompt = self.get_prompt()
-        # import pyperclip
-        # pyperclip.copy(prompt)
-        # show_response(prompt, title="Generation Prompt")
-        res = chat(prompt=prompt, model=self.model, temperature=0.7)
 
-        # 做对比用的prompt
-        # candidate_prompt = self.get_prompt(prompt_template=self.candidate_prompt_template)
-        # candidate_prompt2 = self.get_prompt(prompt_template=self.candidate_prompt_template2)
-        # 做对比用的prompt的结果输出
-        # show_response(
-        #     extract_reply(
-        #         chat(prompt=candidate_prompt, model=self.model, temperature=0.7)
-        #     ),
-        #     title=f"萃取专家 / {self.model} / roleplay"
-        # )
-        # show_response(
-        #     extract_reply(
-        #         chat(prompt=candidate_prompt2, model=self.model)
-        #     ),
-        #     title=f"萃取专家 / {self.model} / roleplay2"
-        # )
 
-        return extract_reply(res=res)
+        res = chat(prompt=prompt, model=self.model, temperature=0.7, stream=stream)
+
+
+        return stream_reply(res) if stream else extract_reply(res=res)
 
     def end_chat(self):
+        self.get_prompt()
         end_prompt_template = read_prompt("end_timeover")
 
-        chat_history = self.chat_history.get_message()
+        chat_history = self.chat_history.get_message()[-20:]
 
         end_prompt = end_prompt_template.format(
             interviewee=self.interviewee_name,

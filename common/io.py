@@ -15,3 +15,11 @@ def suppress_exception():
         yield
     except Exception as e:
         pass
+
+def configure_console():
+    import sys
+
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8")

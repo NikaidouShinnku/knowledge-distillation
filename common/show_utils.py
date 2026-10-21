@@ -12,6 +12,14 @@ def show_response(
         offset:int = None,
         border_color: str = "dark_cyan"
 ):
+    if not isinstance(res, str):
+        chunks = []
+        for chunk in res:
+            if chunk:
+                print(chunk, end="", flush=True)
+                chunks.append(chunk)
+        print()
+        return "".join(chunks)
     if isinstance(res, str):
         if no_pretty:
             print(res)
@@ -26,6 +34,6 @@ def to_progress_bar(
         n_total: int,
         bar_len: int = 20
 ):
-    done_ratio = int(n_done) / int(n_total)
+    done_ratio = min(1, max(0, n_done / n_total)) if n_total > 0 else 0
     done_bar_count = round(done_ratio * bar_len)
     return "󰹞" * done_bar_count + "󰹟" * (bar_len - done_bar_count)

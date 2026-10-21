@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+history.txt
+snapshot/*.json
+task_result/current_distilled_tree.json
+task_result/*.png
+question.mp3
+question.vtt

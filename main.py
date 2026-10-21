@@ -1,7 +1,6 @@
-# -*- coding: utf-8 -*-
+
 import json
 import shutil
-import time
 
 import pyperclip
 from prompt_toolkit import PromptSession, HTML,prompt
@@ -13,39 +12,24 @@ from agent.simulation import SimulationAgent
 from agent.summary import SummaryAgent
 from agent.entity_extraction_distill import EntityExtractionAgent
 from knowledge_graph.entity_relation_triple import EntityRelationTriple
-from asr import record_and_asr
 from chat_history import ChatHistory
 from common.show_utils import show_response, to_progress_bar
 from knowledge_graph.model import KnowledgeGraph
 from knowledge_graph.model_manager import KnowledgeTreeManager
 import argparse
-from consoles import print_code
 from llms.statistics import get_usage
+from llms import default_model, ModelConfig, ModelClient, ConfigurationError, ModelAPIError
+import subprocess
 from plan import plan_directory
 from agent.distill import DistillAgent
 from agent.generation import GenerationAgent
 from progress.progress import Progress
 from prompts import read_prompt
 from tts import tts
-# import readline
-from common.convert import json_str_to_yaml_str
-from entity_extraction.mermaid_opts import create_mermaid_png_and_display
+
 from common.mermaid_code import generate_mermaid
-from welcome import hello
-
-history_file = 'history.txt'
-                                                                                                                      
-# def save_history(history_file):
-#   readline.write_history_file(history_file)
-#
-# def load_history(history_file):
-#   try:
-#       readline.read_history_file(history_file)
-#   except FileNotFoundError:
-#       pass
-
-# Load history from the history file
-# load_history(history_file)
+def hello():
+    print("Knowledge Distillation Expert Agent")
 
 
 def dump(file: str, description: str, knowledge_graph, chat_history, current_response: str):
@@ -69,7 +53,7 @@ def dump(file: str, description: str, knowledge_graph, chat_history, current_res
         "question": ""
     }
 
-    # Write data to the JSON file
+
     with open(file + ".template", 'a') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
         f.write("\n")
@@ -83,7 +67,8 @@ def dump_snapshot(
         model,
         task,
         tone,
-        progress
+        progress,
+        entity_graph=None
 ):
     data = {
         'knowledge_graph': knowledge_graph,
@@ -93,7 +78,8 @@ def dump_snapshot(
         'model': model,
         'task': task,
         'tone': tone,
-        'progress': progress
+        'progress': progress,
+        'entity_graph': entity_graph
     }
     with open(file + ".json", 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
@@ -101,6 +87,8 @@ def dump_snapshot(
 def load_restore_data(file: str):
     with open("snapshot/" + file + ".json", 'r', encoding='utf-8') as f:
         data = json.load(f)
+        if data.get("entity_graph"):
+            entity_relationship_triple.__dict__.update(data["entity_graph"])
         task = data["task"]
         interviewee = data["interviewee"]
         model = data["model"]
@@ -138,7 +126,7 @@ def show_progress():
         prompt_tokens = usage['prompt_tokens'],
         completion_tokens = usage['completion_tokens'],
         total_tokens = usage['total_tokens'],
-        price=usage['price']
+        price='未配置计价，请以供应商账单为准'
     )
     show_response(progress_stats, title="访谈进度概览", width=80)
 
@@ -151,22 +139,25 @@ def show_tree():
     styled_tree = build_rich_tree(tree)
     console = Console()
     console.print(styled_tree)
-    # print_code(json_str_to_yaml_str(tree_manager.get_current_tree().format_to_tree()),
-    #            language="yaml",
-    #            title="DistilledTree"
-    #            )
+
 
 def show_graph():
-    mermaid_code = generate_mermaid(entity_relationship_triple.get_entities(),
-                                    entity_relationship_triple.get_relationships()
-                                    )
-    create_mermaid_png_and_display(mermaid_code=mermaid_code,
-                                   relationships=entity_relationship_triple.get_relationships()
-                                   )
+    try:
+        from entity_extraction.mermaid_opts import create_mermaid_png_and_display
+        mermaid_code = generate_mermaid(entity_relationship_triple.get_entities(),
+                                       entity_relationship_triple.get_relationships())
+        create_mermaid_png_and_display(mermaid_code=mermaid_code,
+                                      relationships=entity_relationship_triple.get_relationships())
+    except (ImportError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        print(f"Graph unavailable: {exc}. Install optional dependencies, mmdc and WezTerm.")
 
 if __name__ == '__main__':
+    from common.io import configure_console
+    configure_console()
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default="llama3-70b-8192", type=str, help='Model name')
+    parser.add_argument('--model', default=None, type=str, help='Model name')
+    parser.add_argument('--evaluate', action='store_true', help='Evaluate each answer with an extra model call')
+    parser.add_argument('--graph', action='store_true', help='Render graph with Mermaid CLI and WezTerm')
     parser.add_argument('--stream', action='store_true', help='Run in stream mode')
     parser.add_argument('--task',  type=str, help='Choose the task', default="organism-classification-distill-plan")
     parser.add_argument('--interviewee', type=str, help='Name of the interviewee', default="maria")
@@ -176,6 +167,11 @@ if __name__ == '__main__':
     parser.add_argument('--generation-mode', type=str, choices=["conversation", "solo"],help='restore the task', default="conversation")
     args = parser.parse_args()
 
+    from pathlib import Path
+    import os
+    os.chdir(Path(__file__).resolve().parent)
+    Path("snapshot").mkdir(exist_ok=True)
+    Path("task_result").mkdir(exist_ok=True)
     hello()
 
     valid_tones = ['严肃', '幽默', '海盗式', '甄嬛传风格', '莎士比亚式', "鲁迅风格", '无建议']
@@ -187,6 +183,7 @@ if __name__ == '__main__':
     distilled_tree = KnowledgeGraph.restore(f"{plan_directory()}/{args.task}")
     progress = Progress(total_minutes=distilled_tree.estimated_minute, objectives_count=len(distilled_tree.objectives))
 
+    requested_model = args.model
     if args.restore:
         (distilled_tree,
          chat_history,
@@ -197,6 +194,10 @@ if __name__ == '__main__':
          tone,
          progress) = load_restore_data(args.restore)
 
+    args.model = requested_model or args.model or default_model()
+    ModelConfig.resolve(args.model)
+    tree_manager.push_back(distilled_tree)
+
     while not tone:
         tone_input_index = prompt(HTML("你希望萃取专家的语气风格是:\n<ansired>1.严肃</ansired>\n<ansiyellow>2.幽默</ansiyellow>\n<ansiblue>3.海盗式</ansiblue>\n<ansigreen>4.甄嬛传风格</ansigreen>\n<ansicyan>5.莎士比亚式</ansicyan>\n<ansiyellow>6.鲁迅风格</ansiyellow>\n7.默认 \n>> "))
 
@@ -204,7 +205,7 @@ if __name__ == '__main__':
             index = int(tone_input_index or len(valid_tones))
             if 0 < index <= len(valid_tones):
                 tone = valid_tones[index-1]
-        except:
+        except ValueError:
             pass
 
     distill_agent = DistillAgent(
@@ -259,34 +260,41 @@ if __name__ == '__main__':
         progress=progress,
         review_history=review_history
     )
-    # other agents
+    agent_group = [distill_agent, entity_extraction_agent, generate_agent, simulate_agent, critique_agent, summary_agent, review_generation_agent]
 
-    begin = time.time()
     turn = 0
     term_col, _ = shutil.get_terminal_size()
     while True:
 
         question = None
         if args.generation_mode == "conversation":
+            approved = False
             for i in range(5):
-                question = generate_agent.generate_question()
+                question = generate_agent.generate_question(stream=args.stream)
+                question = show_response(question, title="问题发起者（小组讨论）", offset=term_col//2,width=60, title_align="right", border_color="blue")
                 review_history.append(role="Asker", content=question)
-                show_response(question, title="问题发起者（小组讨论）", offset=term_col//2,width=60, title_align="right", border_color="blue")
                 verification, answer = review_generation_agent.generate_review()
-                if verification == "No":
+                if verification.strip().lower() != "yes":
                     review_history.append(role="Reviewer", content=answer)
                     show_response("🙅 \n"+answer, title="问题审核员（小组讨论）", offset=term_col//2, width=60, title_align="left", border_color="blue")
-                if verification == "Yes":
+                if verification.strip().lower() == "yes":
+                    approved = True
                     review_history.append(role="Reviewer", content="该问题被审核通过")
                     show_response(" ", title="问题审核员（小组讨论）", offset=term_col // 2, width=60, title_align="left", border_color="blue")
                     break
+            if not approved:
+                print("问题连续五次未通过审核，访谈停止；已有知识树已保留。")
+                break
         else:
-            question = generate_agent.generate_question()
+            question = generate_agent.generate_question(stream=args.stream)
 
+        question = show_response(res=question, title=f'  萃取专家', title_align="right")
         chat_history.append(role="萃取专家", content=question)
-        show_response(res=question, title=f'  萃取专家', title_align="right")
         if args.tts:
-            tts(question, output="question.mp3", play=True)
+            try:
+                tts(question, output="question.mp3", play=True)
+            except (ImportError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+                print(f"TTS unavailable: {exc}; continuing with text")
         if args.auto:
             user_input = simulate_agent.simulate_response()
             show_response(user_input, title="auto-reply  ", title_align='left')
@@ -299,7 +307,9 @@ if __name__ == '__main__':
                 )
                 while True:
                     user_input = session.prompt()
-                    if user_input == "/dump":
+                    if user_input in ("/quit", "/exit"):
+                        raise SystemExit(0)
+                    elif user_input == "/dump":
                         chat_history_chopped_last = ChatHistory()
                         chat_history_chopped_last.chat_history = chat_history.chat_history[:-1]
                         dump_snapshot(
@@ -312,6 +322,7 @@ if __name__ == '__main__':
                             task=args.task,
                             tone=tone,
                             progress=progress.mapping(),
+                            entity_graph=entity_relationship_triple.__dict__,
                         )
                     elif user_input == "/auto":
                         args.auto = True
@@ -319,6 +330,25 @@ if __name__ == '__main__':
                         show_response(user_input, title="auto-reply  ", title_align='left')
                         turn += 1
                         break
+                    elif user_input.startswith("/model "):
+                        selected = user_input.split(maxsplit=1)[1].strip()
+                        try:
+                            ModelConfig.resolve(selected)
+                            args.model = selected
+                            for selected_agent in agent_group:
+                                selected_agent.model = selected
+                            print(f"Model: {selected}")
+                        except ConfigurationError as exc:
+                            print(str(exc))
+                    elif user_input == "/model":
+                        print(f"Model: {args.model}")
+                    elif user_input.startswith("/models "):
+                        provider = user_input.split(maxsplit=1)[1].strip()
+                        try:
+                            with ModelClient(ModelConfig.resolve(f"{provider}/_")) as client:
+                                print("\n".join(client.models()))
+                        except (ConfigurationError, ModelAPIError) as exc:
+                            print(str(exc))
                     elif user_input == "/tree":
                         show_tree()
                     elif user_input == "/graph":
@@ -334,16 +364,40 @@ if __name__ == '__main__':
                     elif user_input == "/refine":
                         summary_agent.restructure(turn=progress.get_round())
                         tree_manager.push_back(distilled_tree.clone())
+                        progress.objectives_completed = distilled_tree.get_completed_objective_num()
+                        progress.total_objective_progress = distilled_tree.get_total_objective_progress()
+                        distilled_tree.dump("task_result/current_distilled_tree")
                     elif user_input == "/undo":
-                        tree_manager.pop()
+                        restored = tree_manager.undo()
+                        if restored is not None:
+                            distilled_tree.__dict__.update(restored.model_copy(deep=True).__dict__)
+                            progress.objectives_completed = distilled_tree.get_completed_objective_num()
+                            progress.total_objective_progress = distilled_tree.get_total_objective_progress()
+                            distilled_tree.dump("task_result/current_distilled_tree")
+                    elif user_input == "/redo":
+                        restored = tree_manager.redo()
+                        if restored is not None:
+                            distilled_tree.__dict__.update(restored.model_copy(deep=True).__dict__)
+                            progress.objectives_completed = distilled_tree.get_completed_objective_num()
+                            progress.total_objective_progress = distilled_tree.get_total_objective_progress()
+                            distilled_tree.dump("task_result/current_distilled_tree")
                     elif user_input == "/progress":
                         show_progress()
                     elif user_input == '/asr':
-                        user_input = record_and_asr()
-                        show_response(res=user_input, title="ASR Result", title_align="left", width=40)
-                        break
+                        try:
+                            from asr import record_and_asr
+                            user_input = record_and_asr()
+                        except (ImportError, OSError, RuntimeError) as exc:
+                            print(f'ASR unavailable: {exc}; enter a text answer')
+                            continue
+                        if user_input and user_input.strip():
+                            show_response(res=user_input, title="ASR Result", title_align="left", width=40)
+                            break
+                        continue
                     elif user_input == '/clipboard':
                         user_input = pyperclip.paste()
+                        if user_input:
+                            break
 
                     elif user_input[:1] == "/":
                         print("Unknown Command")
@@ -352,26 +406,29 @@ if __name__ == '__main__':
                         break
             finally:
                     pass
-                # Save history to the history file
-                # save_history(history_file)
+
 
         chat_history.append(role=args.interviewee, content=user_input)
-        mermaid_code, relation = entity_extraction_agent.extract_triplet(turn=progress.get_round())
-        create_mermaid_png_and_display(mermaid_code=mermaid_code,
-                                       relationships=relation
-                                       )
+        try:
+            entity_extraction_agent.extract_triplet(turn=progress.get_round())
+        except (ValueError, ModelAPIError) as exc:
+            print(f"关系抽取失败，继续更新知识树: {exc}")
+        if args.graph:
+            show_graph()
 
         distill_agent.update_tree(turn=progress.get_round())
         tree_manager.push_back(distilled_tree)
-        # critique_agent.rate_response()
+        if args.evaluate:
+            critique_agent.rate_response()
         progress.on_interviewee_replied(
             objectives_completed=distilled_tree.get_completed_objective_num(),
             total_objective_progress=distilled_tree.get_total_objective_progress()
         )
 
-        if time.time() - begin > distilled_tree.estimated_minute * 60:
+        if progress.get_time_remaining() <= 0:
             show_tree()
-            show_graph()
+            if args.graph:
+                show_graph()
             show_progress()
             show_response(res=generate_agent.end_chat(), title=f'  萃取专家', title_align="right")
             break

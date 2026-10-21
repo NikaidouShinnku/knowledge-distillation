@@ -6,5 +6,5 @@
 | 预计剩余对话轮数    | -      | {rounds_remaining}轮 | - |
 | 输入token用量    | -      | {prompt_tokens} | - |
 | 输出token用量    | -      | {completion_tokens} | - |
-| 费用    | -      | ¥{price:0.3f}  | - |
+| 费用    | -      | {price}  | - |
 

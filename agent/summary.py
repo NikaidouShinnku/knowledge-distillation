@@ -1,4 +1,7 @@
+from agent.resources import example_limit
 import json
+
+from knowledge_graph.actions import apply_actions, parse_actions
 
 from common.show_utils import show_response
 from chat_history import ChatHistory
@@ -29,7 +32,7 @@ class SummaryAgent:
 
         examples = []
         num = 1
-        for example in example_dataset:
+        for example in example_dataset[:example_limit()]:
             examples.append(
                 example_prompt_template.format(
                     description=example["description"],
@@ -45,7 +48,7 @@ class SummaryAgent:
 
 
     def get_prompt(self):
-        chat_history = self.chat_history.get_message()
+        chat_history = self.chat_history.get_message()[-20:]
         return self.final_prompt_template.format(
             domain=self.distilled_tree.domain,
             examples=self.examples,
@@ -54,52 +57,17 @@ class SummaryAgent:
         )
 
     def restructure(self, turn: int):
-        prompt = self.get_prompt()
-
-        res = chat(prompt=prompt, model=self.model)
-
-        show_response(res, title="重新结构化知识树")
-
-        start_pos = res.find("[")
-        if start_pos != -1:
-            res = res[start_pos:]
-        end_pos = res.rfind("]")
-        if end_pos != -1:
-            res = res[:end_pos + 1]
-
+        previous = self.distilled_tree.model_copy(deep=True)
         try:
-            res = json.loads(res)
-        except:
-            res = json.loads(res.replace("'", '"').replace("None", "null"))
+            return self.do_restructure(turn)
+        except Exception:
+            self.distilled_tree.__dict__.update(previous.__dict__)
+            raise
 
-        messages = self.chat_history.get_message()
-        current_response = messages[-1]['content']
-
-        for action in res:
-            if action["action"] == "update_existing_knowledge_node":
-                knowledge_id = action["arguments"]["knowledge_id"]
-                knowledge_type = action["arguments"]["knowledge_type"]
-                knowledge_detail = action["arguments"]["knowledge_detail"]
-                self.distilled_tree.renew_knowledge(
-                    current_response, knowledge_detail, knowledge_type, turn, knowledge_id
-                )
-            elif action["action"] == "add_new_knowledge_node":
-                parent_id = action["arguments"]["parent_id"]
-                knowledge_detail = action["arguments"]["knowledge_detail"]
-                self.distilled_tree.add_knowledge_node(
-                    current_response, knowledge_detail, turn, parent_id
-                )
-            elif action["action"] == "delete_knowledge_node":
-                knowledge_id = action["arguments"]["knowledge_id"]
-                self.distilled_tree.delete_knowledge(knowledge_id)
-            elif action["action"] == "move_knowledge_node":
-                src_knowledge_id = action["arguments"]["source_knowledge_id"]
-                des_knowledge_id = action["arguments"]["destination_knowledge_id"]
-                self.distilled_tree.move_knowledge(src_knowledge_id, des_knowledge_id)
-            elif action["action"] == "generalize_and_combine_knowledge":
-                parent_id = action["arguments"]["parent_id"]
-                knowledge_detail = action["arguments"]["knowledge_detail"]
-                sub_knowledge = action["arguments"]["sub_knowledge_ids"]
-                self.distilled_tree.generalize_knowledge(
-                    current_response, knowledge_detail, sub_knowledge, turn, parent_id
-                )
+    def do_restructure(self, turn: int):
+        res = chat(prompt=self.get_prompt(), model=self.model)
+        actions = parse_actions(res)
+        messages = self.chat_history.get_message()[-20:]
+        response = messages[-1]['content'] if messages else ""
+        apply_actions(self.distilled_tree, actions, response, turn)
+        show_response(res, title="重新结构化知识树")

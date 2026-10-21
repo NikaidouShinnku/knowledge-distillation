@@ -2,17 +2,17 @@ USAGE = {
     "prompt_tokens": 0,
     "completion_tokens": 0,
     "total_tokens": 0,
-    "price": 0.0
+    "price": None,
 }
 
 
-def update_usage(usage, price:float = 0.0):
-    USAGE["prompt_tokens"] += usage.prompt_tokens
-    USAGE["completion_tokens"] += usage.completion_tokens
-    USAGE["total_tokens"] += usage.total_tokens
-    USAGE["price"] += price
-    return USAGE
+def update_usage(usage, price=None):
+    for name in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        USAGE[name] += getattr(usage, name, 0) or 0
+    if price is not None:
+        USAGE["price"] = (USAGE["price"] or 0) + price
+    return dict(USAGE)
 
 
 def get_usage():
-    return USAGE
+    return dict(USAGE)

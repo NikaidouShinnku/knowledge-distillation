@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
+
 import sys
 
 import agent.distill
 from common.show_utils import show_response
-from llms import chat
+from llms import chat, default_model
 import argparse
 import requests
 from bs4 import BeautifulSoup
@@ -13,16 +13,18 @@ chat_history = []
 
 def fetch_url_content(url):
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        return soup.get_text()  # Extract text from the HTML
+        return soup.get_text()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching URL: {e}")
         return None
 
 
 if __name__ == '__main__':
+    from common.io import configure_console
+    configure_console()
     parser = argparse.ArgumentParser()
     parser.add_argument('--file', nargs='+', action="extend", default=[], type=str, help='add file')
     parser.add_argument('--prompt-file', type=str, help='user prompt', default=None)
@@ -48,7 +50,7 @@ if __name__ == '__main__':
             combined_content += "web-info: " + url_content + "\n"
 
     if not args.model:
-        args.model = ["llama3-70b-8192"]
+        args.model = [default_model()]
 
     if not args.prompt_file and not args.prompt:
         print("error")
@@ -68,16 +70,13 @@ if __name__ == '__main__':
         prompt = f"""
             {combined_content}
 
-        阅读上面的内容，然后回答用户的问题："{args.prompt}"
+        阅读上面的内容，然后回答用户的问题："{prompt}"
         """
 
     if not args.history:
         for model in args.model:
             res = chat(prompt=prompt, model=model, stream=args.stream)
-            if args.no_pretty:
-                print(res)
-            else:
-                response = show_response(res, title=model)
+            response = show_response(res, title=model, no_pretty=args.no_pretty)
 
     else:
         chat_history.append(
@@ -85,17 +84,24 @@ if __name__ == '__main__':
         )
         for model in args.model[:1]:
             res = chat(messages=chat_history, model=args.model[0], stream=args.stream)
-            response = show_response(res, title=model)
+            response = show_response(res, title=model, no_pretty=args.no_pretty)
             chat_history += [
                 {"role": "assistant", "content": response}
             ]
             while True:
-                q = input("[User]: ")
+                try:
+                    q = input("[User]: ")
+                except (EOFError, KeyboardInterrupt):
+                    break
+                if q.strip() in ("/quit", "/exit"):
+                    break
+                if not q.strip():
+                    continue
                 chat_history.append(
                     {"role": "user", "content": q}
                 )
                 res = chat(messages=chat_history, model=args.model[0], stream=args.stream)
-                response = show_response(res, title=model)
+                response = show_response(res, title=model, no_pretty=args.no_pretty)
                 chat_history += [
                     {"role": "assistant", "content": response}
                 ]

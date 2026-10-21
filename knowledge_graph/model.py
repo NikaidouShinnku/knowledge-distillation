@@ -1,6 +1,6 @@
 import contextlib
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Union, Dict
 from pydantic.json import pydantic_encoder
 import uuid
@@ -10,7 +10,7 @@ import decimal
 
 
 class Knowledge(BaseModel):
-    id: str = str(uuid.uuid4())
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     concept: Union[str, None] = None
     why_important: Union[str, None] = None
     knowledge_description: Union[str, None] = None
@@ -24,7 +24,7 @@ class Knowledge(BaseModel):
         return sum(child.n_nodes() for child in self.sub_knowledge) + len(self.sub_knowledge)
 
 class Objective(BaseModel):
-    id: str = str(uuid.uuid4())
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     obj_description: Union[str, None] = None
     knowledge: List[Knowledge] = []
     progress: float = 0
@@ -65,7 +65,7 @@ class KnowledgeGraph(BaseModel):
             return knowledge_item
 
         tree = self.model_dump()
-        # Attrs drop
+
         if "id" in tree:
             del tree["id"]
         for obj in tree['objectives']:
@@ -75,7 +75,7 @@ class KnowledgeGraph(BaseModel):
             for knowledge in obj.get("knowledge", []):
                 clean_knowledge(knowledge, drop_knowledge_attrs)
 
-        # Name change
+
         new_objectives = []
         for obj in tree['objectives']:
             readable_obj = {}
@@ -106,29 +106,8 @@ class KnowledgeGraph(BaseModel):
             str: JSON string representing the knowledge tree.
         """
 
-        return self.json(exclude_none=True)
+        return self.model_dump_json(exclude_none=True)
 
-    # @contextlib.contextmanager
-    # def with_xml_context(self, tag: str, context:list):
-    #     context.append(f"<{tag}")
-    #     yield
-    #     context.append(f"</{tag}>")
-    # def to_xml(self):
-    #     """
-    #     Get the JSON representation of the knowledge tree.
-    #     Returns:
-    #         str: JSON string representing the knowledge tree.
-    #     """
-    #     formats = []
-    #     with self.with_xml_context(tag="knowledge_graph", context=formats):
-    #         with self.with_xml_context(tag="id", context=formats):
-    #             pass
-    #
-    #     formats.append("<knowledge_graph id=1234>")
-    #
-    #     formats.append("</knowledge_graph>")
-    #
-    #     return self.json(exclude_none=True)
 
     def format_to_tree(self):
         """
@@ -136,7 +115,7 @@ class KnowledgeGraph(BaseModel):
         Returns:
             str: JSON string representing the knowledge tree.
         """
-        return json.dumps(self.dict(), indent=2, ensure_ascii=False)
+        return json.dumps(self.model_dump(), indent=2, ensure_ascii=False)
 
     @classmethod
     def restore(cls, file: str):
@@ -147,9 +126,9 @@ class KnowledgeGraph(BaseModel):
         Returns:
             KnowledgeGraph: An instance of KnowledgeGraph initialized with the data from the file.
         """
-        with open(file + ".json", 'r') as f:
+        with open(file + ".json", 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return KnowledgeGraph(**data)  # Initialize the instance with the data from the file
+        return KnowledgeGraph(**data)
 
 
     def dump(self, file: str):
@@ -159,8 +138,8 @@ class KnowledgeGraph(BaseModel):
             file (str): The path to the JSON file where the knowledge tree will be saved.
         """
         self.end_date = datetime.now().strftime("%Y-%m-%d")
-        with open(file + ".json", 'w') as f:
-            f.write(self.json())
+        with open(file + ".json", 'w', encoding='utf-8') as f:
+            f.write(self.model_dump_json())
 
     def find_knowledge_by_id(self, knowledge_id: str) -> Union[Knowledge, None]:
         """
@@ -199,7 +178,7 @@ class KnowledgeGraph(BaseModel):
         if 'concept' not in knowledge_details:
             raise ValueError("Knowledge details must include 'concept'.")
 
-        new_knowledge = Knowledge(id=str(uuid.uuid4()))  # Ensure a new unique UUID is generated
+        new_knowledge = Knowledge(id=str(uuid.uuid4()))
         for knowledge_type, knowledge_detail in knowledge_details.items():
             if knowledge_type in ['concept', 'why_important', 'knowledge_description', 'example', 'other']:
                 setattr(new_knowledge, knowledge_type, knowledge_detail)
@@ -254,7 +233,18 @@ class KnowledgeGraph(BaseModel):
         if 'concept' not in knowledge_details:
             raise ValueError("Knowledge details must include 'concept'.")
 
-        new_knowledge = Knowledge(id=str(uuid.uuid4()), is_new_node=True)  # Ensure a new unique UUID is generated
+        nodes = [self.find_knowledge_by_id(node_id) for node_id in sub_knowledge_ids]
+        if not nodes or any(node is None for node in nodes) or len(set(sub_knowledge_ids)) != len(nodes):
+            raise ValueError("Every sub-knowledge ID must exist and be unique")
+        if self.find_knowledge_by_id(parent_id) is None and not any(obj.id == parent_id for obj in self.objectives):
+            raise ValueError("Parent node does not exist")
+        def contains(node, target):
+            return node.id == target or any(contains(child, target) for child in node.sub_knowledge)
+        if any(contains(node, parent_id) for node in nodes):
+            raise ValueError("Parent cannot be inside the nodes being combined")
+        if any(contains(a, b.id) for a in nodes for b in nodes if a is not b):
+            raise ValueError("Cannot combine overlapping ancestor and descendant nodes")
+        new_knowledge = Knowledge(is_generalized_node=True)
         for knowledge_type, knowledge_detail in knowledge_details.items():
             if knowledge_type in ['concept', 'why_important', 'knowledge_description', 'example', 'other']:
                 setattr(new_knowledge, knowledge_type, knowledge_detail)
@@ -262,7 +252,7 @@ class KnowledgeGraph(BaseModel):
                 raise ValueError(f"Invalid type {knowledge_type}.")
         new_knowledge.raw_user_response = {turn: raw_res}
 
-        # Function to find and remove sub-knowledge by IDs
+
         def find_and_remove_knowledge(knowledge_list: List[Knowledge], ids: List[str]) -> List[Knowledge]:
             found_knowledge = []
             for knowledge in knowledge_list[:]:
@@ -281,7 +271,7 @@ class KnowledgeGraph(BaseModel):
         if not sub_knowledge_list:
             raise ValueError(f"No sub-knowledge nodes with the given IDs {sub_knowledge_ids} found.")
 
-        new_knowledge.sub_knowledge.extend(sub_knowledge_list)  # Add the found sub-knowledge nodes
+        new_knowledge.sub_knowledge.extend(sub_knowledge_list)
 
         def find_and_add(parent):
             if parent.id == parent_id:
@@ -395,7 +385,18 @@ class KnowledgeGraph(BaseModel):
                     return found
             return None
 
-        # Step 1: Find and remove the source knowledge node
+        source = self.find_knowledge_by_id(src_id)
+        destination = self.find_knowledge_by_id(des_id)
+        if source is None:
+            raise ValueError(f"Source node with id {src_id} not found.")
+        if destination is None and not any(obj.id == des_id for obj in self.objectives):
+            raise ValueError(f"Destination node with id {des_id} not found.")
+        def contains(node, target):
+            return node.id == target or any(contains(child, target) for child in node.sub_knowledge)
+        if contains(source, des_id):
+            raise ValueError("Cannot move a node into itself or its descendants.")
+
+
         src_knowledge = None
         for objective in self.objectives:
             src_knowledge = find_and_remove_knowledge(objective.knowledge, src_id)
@@ -406,7 +407,7 @@ class KnowledgeGraph(BaseModel):
         if not src_knowledge:
             raise ValueError(f"Source node with id {src_id} not found.")
 
-        # Step 2: Find the destination node and add the source knowledge node as its sub-knowledge
+
         def find_and_add_knowledge(knowledge_list: List[Knowledge], knowledge_id: str,
                                    knowledge_to_add: Knowledge) -> bool:
             for knowledge in knowledge_list:
@@ -438,10 +439,12 @@ class KnowledgeGraph(BaseModel):
         Args:
             knowledge_id (str): The ID of the knowledge node.
         """
+        def contains(node):
+            return node.id == knowledge_id or any(contains(child) for child in node.sub_knowledge)
         for objective in self.objectives:
-            if any(knowledge.id == knowledge_id or any(sub_knowledge.id == knowledge_id for sub_knowledge in knowledge.sub_knowledge) for knowledge in objective.knowledge):
+            if objective.id == knowledge_id or any(contains(node) for node in objective.knowledge):
                 self.manage_progress(objective.id)
-                break
+                return
 
     def manage_progress(self, objective_id: str):
         """
@@ -457,7 +460,7 @@ class KnowledgeGraph(BaseModel):
             raise ValueError(f"Objective with ID {objective_id} not found.")
 
         def count_sub_knowledge_fields(knowledge: Knowledge) -> int:
-            count = sum(
+            count = 0 if knowledge.is_generalized_node else sum(
                 getattr(knowledge, field) is not None for field in ['concept', 'why_important', 'knowledge_description', 'example']
             )
             for sub_knowledge in knowledge.sub_knowledge:
@@ -467,7 +470,6 @@ class KnowledgeGraph(BaseModel):
         sub_knowledge_count = sum(
             count_sub_knowledge_fields(knowledge)
             for knowledge in objective.knowledge
-            if not getattr(knowledge, 'is_generalized_node', False)
         )
 
         objective.progress = min(sub_knowledge_count * 0.05, 1.0)

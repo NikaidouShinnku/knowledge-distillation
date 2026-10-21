@@ -50,7 +50,7 @@ class Progress:
             "round_total": self.rounds,
             "objectives_total": self.objectives_count,
             "objectives_completed_count": self.objectives_completed,
-            "objectives_completed": f'{(self.objectives_completed/self.objectives_count * 100) * 100}%',
+            "objectives_completed": f'{self.objectives_completed/self.objectives_count * 100}%',
             "progress_completed":  self.total_objective_progress,
             "time_total": int(self.time_total / 60) or 1,
             "time_remaining": int(self.get_time_remaining() / 60)
@@ -59,7 +59,7 @@ class Progress:
             stats["average_time_per_round"] = "Unknown"
             stats["rounds_remaining"] = "Unknown"
         else:
-            average_time = self.get_time_elapsed() / self.rounds
+            average_time = max(self.get_time_elapsed() / self.rounds, 0.001)
             if average_time < 60:
                 stats["average_time_per_round"] = "小于1"
             else:

@@ -1,0 +1,5 @@
+-r requirements.txt
+PyAudio~=0.2.14
+edge-tts>=6
+numpy~=1.26.4
+miniaudio>=1.61,<2

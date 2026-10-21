@@ -1,3 +1,4 @@
+from agent.resources import example_limit
 import json
 from datetime import datetime
 
@@ -56,7 +57,7 @@ class ReviewGenerationAgent:
 
         examples = []
         num = 1
-        for example in example_dataset:
+        for example in example_dataset[:example_limit()]:
             examples.append(
                 example_prompt_template.format(
                     description=example["description"],
@@ -89,8 +90,8 @@ class ReviewGenerationAgent:
             domain=self.distilled_tree.domain,
             examples=self.examples,
             distilled_tree=self.readable_tree,
-            review_history=self.format_chat_history(self.review_history.get_message()),
-            newest_question=self.review_history.get_message()[-1]['content'],
+            review_history=self.format_chat_history(self.review_history.get_message()[-10:]),
+            newest_question=self.review_history.get_message()[-10:][-1]['content'],
             task_progress=self.task_progress,
             date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )

@@ -13,4 +13,4 @@ class ChatHistory(BaseModel):
         self.chat_history.append(Message(role=role, content=content))
 
     def get_message(self):
-        return self.dict()['chat_history']
+        return self.model_dump()['chat_history']

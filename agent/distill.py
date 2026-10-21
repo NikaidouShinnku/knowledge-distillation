@@ -1,4 +1,7 @@
+from agent.resources import example_limit
 import json
+
+from knowledge_graph.actions import apply_actions, parse_actions
 
 import pyperclip
 
@@ -27,7 +30,7 @@ class DistillAgent:
 
         examples = []
         num = 1
-        for example in example_dataset:
+        for example in example_dataset[:example_limit()]:
             examples.append(
                 example_prompt_template.format(
                     description=example["description"],
@@ -56,7 +59,7 @@ class DistillAgent:
             )
 
     def get_prompt(self):
-        messages = self.chat_history.get_message()
+        messages = self.chat_history.get_message()[-20:]
         current_response = messages[-1]['content']
         chat_history = messages[:-1]
         return self.final_prompt_template.format(
@@ -71,69 +74,17 @@ class DistillAgent:
 
     def update_tree(self, turn: int):
         for i in range(3):
+            previous = self.distilled_tree.model_copy(deep=True)
             try:
                 return self.do_update_tree(turn=turn)
-            except:
+            except (ValueError, KeyError, TypeError) as exc:
+                self.distilled_tree.__dict__.update(previous.__dict__)
                 if i == 2:
-                    raise ValueError("Fail to update tree")
+                    raise ValueError("Fail to update tree") from exc
 
 
-    def do_update_tree(self, turn:int):
-        prompt = self.get_prompt()
-        # import pyperclip
-        # pyperclip.copy(prompt)
-        res = chat(prompt=prompt, model=self.model)
-
-        start_pos = res.find("[")
-        if start_pos != -1:
-            res = res[start_pos:]
-        end_pos = res.rfind("]")
-        if end_pos != -1:
-            res = res[:end_pos + 1]
-
-        # show_response(res, title="Distill")
-        try:
-            res = json.loads(res)
-        except:
-            res = json.loads(res.replace("'", '"').replace("None", "null"))
-
-
-        # 对distill结果进行review
-        messages = self.chat_history.get_message()
-        current_response = messages[-1]['content']
-        chat_history = messages[:-1]
-        # review_prompt_template = read_prompt("review_distill")
-        # review_prompt = review_prompt_template.format(
-        #     distilled_tree=self.distilled_tree.get_tree(),
-        #     chat_history=chat_history,
-        #     current_response=current_response,
-        #     actions=res,
-        # )
-        # show_response(review_prompt, title="Review_Distill_Prompt")
-        # pyperclip.copy(review_prompt)
-        # review_res = chat(prompt=review_prompt, model=self.model)
-        # show_response(review_res, title="Review_Distill")
-
-        for action in res:
-            if action["action"] == "update_existing_knowledge_node":
-                knowledge_id = action["arguments"]["knowledge_id"]
-                knowledge_type = action["arguments"]["knowledge_type"]
-                knowledge_detail = action["arguments"]["knowledge_detail"]
-                self.distilled_tree.renew_knowledge(
-                    current_response, knowledge_detail, knowledge_type, turn, knowledge_id
-                )
-            elif action["action"] == "add_new_knowledge_node":
-                parent_id = action["arguments"]["parent_id"]
-                knowledge_detail = action["arguments"]["knowledge_detail"]
-                self.distilled_tree.add_knowledge_node(
-                    current_response, knowledge_detail, turn, parent_id
-                )
-            elif action["action"] == "delete_knowledge_node":
-                knowledge_id = action["arguments"]["knowledge_id"]
-                self.distilled_tree.delete_knowledge(knowledge_id)
-            elif action["action"] == "move_knowledge_node":
-                src_knowledge_id = action["arguments"]["source_knowledge_id"]
-                des_knowledge_id = action["arguments"]["destination_knowledge_id"]
-                self.distilled_tree.move_knowledge(src_knowledge_id, des_knowledge_id)
-
+    def do_update_tree(self, turn: int):
+        actions = parse_actions(chat(prompt=self.get_prompt(), model=self.model))
+        current_response = self.chat_history.get_message()[-20:][-1]['content']
+        apply_actions(self.distilled_tree, actions, current_response, turn)
         self.distilled_tree.dump("task_result/current_distilled_tree")

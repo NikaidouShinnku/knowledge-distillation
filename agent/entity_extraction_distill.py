@@ -10,7 +10,6 @@ from interviewee import interviewee_directory
 from llms import chat
 from prompts import read_prompt
 from knowledge_graph.model import KnowledgeGraph
-from icecream import ic
 
 
 class EntityExtractionAgent:
@@ -20,7 +19,7 @@ class EntityExtractionAgent:
             distilled_tree: KnowledgeGraph,
             chat_history: ChatHistory,
             model: str,
-            entity_types: List, 
+            entity_types: List,
             entity_relationship_triple
     ):
         self.chat_history = chat_history
@@ -37,10 +36,7 @@ class EntityExtractionAgent:
         current_response = messages[-1]['content']
         chat_history = messages[:-1]
         return self.final_prompt_template.format(
-            # domain=self.distilled_tree.domain,
-            # distilled_tree=self.distilled_tree.get_tree(),
-            # chat_history=chat_history,
-            # current_response=current_response
+
 
             record_delimiter='##',
             tuple_delimiter='<|>',
@@ -48,8 +44,8 @@ class EntityExtractionAgent:
             entity_types=self.entity_types,
             domain=self.distilled_tree.domain,
             input_text=current_response,
-            history_entities=self.entity_relation_triple.get_relationships(),
-            history_relationships=self.entity_relation_triple.get_entities()
+            history_entities=self.entity_relation_triple.get_entities(),
+            history_relationships=self.entity_relation_triple.get_relationships()
         )
 
     def write_mermaid_to_file(self, mermaid_code: str, file_path):
@@ -64,22 +60,22 @@ class EntityExtractionAgent:
         for i in range(3):
             try:
                 return self.do_extract_triplet(turn=turn)
-            except:
+            except (ValueError, IndexError, KeyError) as exc:
                 if i == 2:
-                    raise ValueError("Fail to update tree")
+                    raise ValueError("Fail to extract relationships") from exc
 
 
     def do_extract_triplet(self, turn:int):
         prompt = self.get_prompt()
-        # import pyperclip
-        # pyperclip.copy(prompt)
+
+
         res = chat(prompt=prompt, model=self.model)
-        # show_response(res, title="Distill_Result")
+
 
         from common.mermaid_code import parse_entity_relation, generate_mermaid
 
         entity, relation = parse_entity_relation(res)
         self.entity_relation_triple.merge_entities_and_relationships(entity, relation)
-        mermaid_code = generate_mermaid(entity, relation)
+        mermaid_code = generate_mermaid(self.entity_relation_triple.get_entities(), self.entity_relation_triple.get_relationships())
 
         return mermaid_code, relation
