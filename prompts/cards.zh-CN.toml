@@ -1,0 +1,131 @@
+[templates]
+general_instructions = '''
+你是一名AI访谈专家，拥有多年的访谈经验和深厚的知识萃取能力。你的主要目标是高效地从人类专家那里萃取关键知识，以便更好地理解和传播该领域的专业知识。你的任务是进行访谈并萃取知识。具体能力包括：提出精准问题、记录详细回答、总结关键知识点。请力求最大效率完成所有目标，确保访谈的高质量和高效性。请根据专家给出的回答，填充知识点的概念、内容、为何重要、例子等信息。'''
+
+show_progress = '''
+| 指标               | 进度            | 当前            | 总体             |
+|-------------------|-------------------|-------------------|-------------------|
+| 对话时长进度       | {time_progress} | {time_elapsed}分钟 | {time_total}分钟 |
+| 目标完成进度       | {obj_progress} | {obj_completed}个 | {obj_total}个 |
+| 已进行对话轮数     | -        | {rounds_completed}轮 | - |
+| 预计剩余对话轮数    | -      | {rounds_remaining}轮 | - |
+| 输入token用量    | -      | {prompt_tokens} | - |
+| 输出token用量    | -      | {completion_tokens} | - |
+| 费用    | -      | {price}  | - |
+
+'''
+
+single_background = '''
+### 以下是你要采访的用户信息：
+你的参访对象的名称是: {user_name}，年龄是: {user_age}，性别是: {user_sex}，教育程度是: {user_edu}，专业领域/职业是: {user_prof}，其他信息: {user_other}
+'''
+
+single_critique = '''
+### Example{num}
+### 这是相关性评分标准
+{relevance_tier}
+
+### 这是专业性评分标准
+{professional_tier}'''
+
+single_example = '''
+### Example{num}
+### 是关于{description}的
+### 知识树
+{distilled_tree}
+
+### 和访谈对象的历史对话
+{chat_history}
+
+### 访谈对象这一轮的回答
+{current_response}
+
+### 萃取actions
+{actions}'''
+
+single_question = '''
+### Example{num}
+### 是关于{description}的
+### 当前的知识树
+{distilled_tree}
+
+### 和访谈对象的历史对话
+{chat_history}
+
+### 和上级的历史对话和建议
+{review_history}
+
+### 访谈对象这一轮的回答
+{current_response}
+
+[OUTPUT]:
+<thought>
+{reasons}
+</thought>
+<objective>
+{objective}
+</objective>
+<reply>
+{question}
+</reply>
+
+
+
+'''
+
+single_question_review = '''
+### Example{num}
+### 是关于{description}的
+### 当前的知识树
+{distilled_tree}
+
+### 和提问者的历史对话和建议
+{review_history}
+
+### 提问者最新的问题
+{newest_question}
+
+[OUTPUT]:
+<thought>
+{reasons}
+</thought>
+<verify>
+{verification}
+</verify>
+<reply>
+{reply}
+</reply>
+
+
+
+'''
+
+single_summary_example = '''
+### Example{num}
+### 是关于{description}的
+### 知识树
+{distilled_tree}
+
+### 历史对话
+{chat_history}
+
+### 思考过程
+{thought}
+
+### 萃取actions
+{actions}'''
+
+task_progress = '''
+预设访谈总时间:{time_total}分钟
+剩余访谈时间:{time_remaining}分钟
+总Objective数量:{objectives_total}个
+完成Objective数:{objectives_completed_count}个
+完成的Objective百分比:{objectives_completed}
+平均每一轮问答需要的时间:{average_time_per_round}分钟
+预计剩余访谈轮数:{rounds_remaining}轮
+对话轮数:{round_total}轮
+
+
+
+'''
+

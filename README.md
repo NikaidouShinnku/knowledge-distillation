@@ -49,6 +49,11 @@ This was a personal/internship R&D project exploring multi-agent knowledge extra
 
 ## Run (Windows / Python 3.12)
 
+Prompt templates are grouped into bilingual bundles under `prompts/`. The
+default remains Chinese; set `PROMPT_LANGUAGE=en-US` in `.env` to load the
+English translations. Original response-language requirements still apply.
+See [prompt names and usage](prompts/README.md).
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt

@@ -1,0 +1,131 @@
+[templates]
+general_instructions = '''
+You are an AI interview expert with years of interview experience and profound knowledge extraction capabilities. Your main goal is to efficiently extract key knowledge from human experts in order to better understand and disseminate professional knowledge in this field. Your task is to conduct interviews and extract knowledge. Specific capabilities include: asking precise questions, recording detailed answers, and summarizing key knowledge points. Please strive to achieve all goals with maximum efficiency, ensuring high quality and high efficiency of the interview. Please fill in the concept, content, why it is important, examples, and other information of the knowledge points based on the answers given by the expert.'''
+
+show_progress = '''
+| Metric               | Progress            | Current            | Overall             |
+|-------------------|-------------------|-------------------|-------------------|
+| Conversation Duration Progress       | {time_progress} | {time_elapsed} minutes | {time_total} minutes |
+| Objective Completion Progress       | {obj_progress} | {obj_completed} items | {obj_total} items |
+| Conversation Rounds Conducted     | -        | {rounds_completed} rounds | - |
+| Estimated Remaining Conversation Rounds    | -      | {rounds_remaining} rounds | - |
+| Input Token Usage    | -      | {prompt_tokens} | - |
+| Output Token Usage    | -      | {completion_tokens} | - |
+| Cost    | -      | {price}  | - |
+
+'''
+
+single_background = '''
+### Below is the user information you need to interview:
+The name of your interviewee is: {user_name}, age is: {user_age}, gender is: {user_sex}, education level is: {user_edu}, professional field/occupation is: {user_prof}, other information: {user_other}
+'''
+
+single_critique = '''
+### Example{num}
+### This is the relevance scoring criteria
+{relevance_tier}
+
+### This is the professionalism scoring criteria
+{professional_tier}'''
+
+single_example = '''
+### Example{num}
+### This is about {description}
+### Knowledge Tree
+{distilled_tree}
+
+### Historical Dialogue with the Interviewee
+{chat_history}
+
+### This round of response from the interviewee
+{current_response}
+
+### Extracting actions
+{actions}'''
+
+single_question = '''
+### Example{num}
+### This is about {description}
+### Current knowledge tree
+{distilled_tree}
+
+### Historical Dialogue with the Interviewee
+{chat_history}
+
+### Historical dialogue and suggestions with superiors
+{review_history}
+
+### This round of response from the interviewee
+{current_response}
+
+[OUTPUT]:
+<thought>
+{reasons}
+</thought>
+<objective>
+{objective}
+</objective>
+<reply>
+{question}
+</reply>
+
+
+
+'''
+
+single_question_review = '''
+### Example{num}
+### This is about {description}
+### Current knowledge tree
+{distilled_tree}
+
+### Historical dialogue and suggestions with the questioner
+{review_history}
+
+### Questioner's latest question
+{newest_question}
+
+[OUTPUT]:
+<thought>
+{reasons}
+</thought>
+<verify>
+{verification}
+</verify>
+<reply>
+{reply}
+</reply>
+
+
+
+'''
+
+single_summary_example = '''
+### Example{num}
+### This is about {description}
+### Knowledge Tree
+{distilled_tree}
+
+### Historical dialogue
+{chat_history}
+
+### Thought process
+{thought}
+
+### Extracting actions
+{actions}'''
+
+task_progress = '''
+Preset total interview time: {time_total} minutes
+Remaining interview time: {time_remaining} minutes
+Total number of Objectives: {objectives_total}
+Completed Objectives: {objectives_completed_count}
+Completed Objective percentage: {objectives_completed}
+Average time required per round of Q&A: {average_time_per_round} minutes
+Estimated remaining interview rounds: {rounds_remaining} rounds
+Conversation rounds: {round_total} rounds
+
+
+
+'''
+
