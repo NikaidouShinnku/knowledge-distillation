@@ -144,6 +144,9 @@ def show_tree():
 
 
 def show_graph():
+    if not entity_relationship_triple.get_entities():
+        show_response('No entities have been collected yet. Start with --entities or --graph and answer at least one question before using /graph. Use /tree to view the knowledge tree.', title='Knowledge graph')
+        return
     try:
         from entity_extraction.mermaid_opts import create_mermaid_png_and_display
         mermaid_code = generate_mermaid(entity_relationship_triple.get_entities(),
@@ -151,7 +154,7 @@ def show_graph():
         create_mermaid_png_and_display(mermaid_code=mermaid_code,
                                       relationships=entity_relationship_triple.get_relationships())
     except (ImportError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
-        print(f"Graph unavailable: {exc}. Install optional dependencies, mmdc and WezTerm.")
+        print(f"Graph unavailable: {exc}. Run python install.py to install and verify the required graph tools.")
 
 if __name__ == '__main__':
     from common.io import configure_console

@@ -89,7 +89,7 @@ class MediaFlowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'graph.png'
             with patch.dict('os.environ', {'MERMAID_CLI': 'mmdc'}), patch('entity_extraction.mermaid_opts.shutil.which', return_value=None), patch('entity_extraction.mermaid_opts.subprocess.run', side_effect=render), contextlib.redirect_stdout(io.StringIO()):
-                result = create_mermaid_png_and_display('graph TD\n', [], output_file=output)
+                result = create_mermaid_png_and_display('graph TD\n', [], display_in_term=False, output_file=output)
             self.assertEqual(Path(result).read_bytes(), b'PNG')
 
 

@@ -10,3 +10,5 @@ question.mp3
 question.vtt
 interviewee/local-*.json
 plan/local-*.json
+node_modules/
+task_result/*.mmd

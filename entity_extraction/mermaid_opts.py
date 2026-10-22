@@ -3,8 +3,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import json
+import webbrowser
 
 from common.show_utils import show_response
+from common.tooling import mermaid_command, browser_executable
 
 
 def display_relationship_descriptions(relationships):
@@ -15,24 +18,41 @@ def display_relationship_descriptions(relationships):
 
 def create_mermaid_png_and_display(mermaid_code, relationships, display_in_term=True,
                                     output_file="task_result/knowledge_graph.png"):
-    executable = os.getenv("MERMAID_CLI") or shutil.which("mmdc")
-    if not executable:
-        raise FileNotFoundError("Set MERMAID_CLI or install mmdc on PATH")
     output = Path(output_file).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    source = output.with_suffix('.mmd')
+    source.write_text(mermaid_code, encoding='utf-8')
+    executable = mermaid_command()
     with tempfile.TemporaryDirectory() as directory:
-        source = Path(directory) / "graph.mmd"
-        source.write_text(mermaid_code, encoding="utf-8")
-        command = [executable, "-i", str(source), "-t", "dark", "-b", "transparent", "-o", str(output)]
+        command = [*executable, "-i", str(source), "-t", "dark", "-b", "transparent", "-o", str(output)]
         config = os.getenv("MERMAID_PUPPETEER_CONFIG")
+        if not config:
+            browser = browser_executable()
+            if browser:
+                config = str(Path(directory) / 'puppeteer.json')
+                Path(config).write_text(json.dumps({'executablePath': browser}), encoding='utf-8')
         if config:
             command.extend(["-p", config])
-        subprocess.run(command, check=True, capture_output=True, timeout=90)
+        try:
+            subprocess.run(command, check=True, capture_output=True, timeout=90)
+        except subprocess.CalledProcessError as error:
+            detail = error.stderr.decode('utf-8', errors='replace') if isinstance(error.stderr, bytes) else (error.stderr or '')
+            detail = detail if len(detail) <= 1500 else detail[:900] + '\n...\n' + detail[-600:]
+            raise RuntimeError(f'Mermaid rendering failed: {detail}') from error
     if not output.is_file():
         raise FileNotFoundError("Mermaid did not produce an image")
     wezterm = shutil.which("wezterm")
-    if display_in_term and wezterm:
-        subprocess.run([wezterm, "imgcat", str(output)], check=True, timeout=30)
+    if display_in_term:
+        try:
+            if wezterm and (os.getenv('WEZTERM_PANE') or os.getenv('TERM_PROGRAM') == 'WezTerm'):
+                subprocess.run([wezterm, "imgcat", str(output)], check=True, timeout=30)
+            elif os.name == 'nt':
+                os.startfile(str(output))
+            else:
+                webbrowser.open(output.as_uri())
+        except (OSError, subprocess.SubprocessError) as error:
+            print(f'Image saved; open it manually if the viewer is unavailable: {error}')
     print(f"Knowledge graph: {output}")
+    print(f"Mermaid source: {source}")
     display_relationship_descriptions(relationships)
     return str(output)

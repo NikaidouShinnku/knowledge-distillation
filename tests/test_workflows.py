@@ -55,7 +55,7 @@ class WorkflowTests(unittest.TestCase):
             stack.enter_context(patch('agent.simulation.chat', return_value='Simulated answer'))
             distillation = stack.enter_context(patch('agent.distill.chat', return_value=actions))
             stack.enter_context(patch('agent.summary.chat', return_value='[]'))
-            entities = stack.enter_context(patch('agent.entity_extraction_distill.chat', return_value='<|COMPLETE|>'))
+            entities = stack.enter_context(patch('agent.entity_extraction_distill.chat', return_value='("entity"<|>"Example"<|>"OTHER"<|>"An example entity")##<|COMPLETE|>'))
             evaluation = stack.enter_context(patch('agent.critique.chat', return_value='Score: good'))
             stack.enter_context(patch.object(KnowledgeGraph, 'dump'))
             stack.enter_context(patch.object(Progress, 'get_time_remaining', autospec=True, side_effect=remaining if remaining is not None else lambda progress: 0))

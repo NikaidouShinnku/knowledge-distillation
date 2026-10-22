@@ -9,3 +9,7 @@ pydantic~=2.8.0
 prompt-toolkit>=3.0,<4
 PyYAML>=6,<7
 python-dotenv>=1.0,<2
+PyAudio~=0.2.14
+edge-tts>=6
+numpy~=1.26.4
+miniaudio>=1.61,<2

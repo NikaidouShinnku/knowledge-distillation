@@ -55,9 +55,37 @@ original Chinese style menu. English prompts require English dialogue, reviewer
 feedback, summaries and extracted knowledge, including when the user replies in Chinese.
 See [prompt names and usage](prompts/README.md).
 
+Install **64-bit Python 3.12** and **Node.js 22.13 or newer with npm** first.
+Reopen the terminal after installing Node.js. From the project directory, run
+the complete installer (the same command works in CMD and PowerShell):
+
+```text
+python install.py
+```
+
+Windows users can also double-click `install.cmd`. The installer creates
+`.venv`, installs all Python dependencies from `requirements.txt`, installs
+Mermaid CLI locally from `package.json`, and verifies an actual PNG render.
+It uses an installed Edge/Chrome browser when available; otherwise Puppeteer
+downloads its browser during npm installation. Allow the initial download to finish.
+`task_result/install-check.png` confirms that rendering succeeded.
+
+图形、语音所需的 Python 包现在都属于默认必装依赖，不再需要单独安装可选包。
+Mermaid CLI 是 Node.js 工具，不能由 pip 安装；请运行上面的统一安装脚本，
+不要只执行 `pip install -r requirements.txt` 后就跳过图形工具。
+`requirements-optional.txt` 仅保留旧命令兼容，现在也会安装完整 Python 依赖。
+
+For an existing virtual environment, the manual equivalent is:
+
+```text
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+npm install
+```
+
+Copy `.env.example` to `.env` if `.env` does not already exist. In CMD use
+`if not exist .env copy .env.example .env`; in PowerShell use:
+
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
@@ -169,25 +197,99 @@ Check model access without generating tokens, or explicitly test generation:
 Token counts are recorded when returned by the provider. Cost is not
 estimated using the obsolete price constants; consult your provider bill.
 
-Optional voice and graph dependencies:
+## Graph, knowledge edits and saved sessions / 图形、修改和存档
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-optional.txt
+### View the graph / 怎么看图
+
+The knowledge tree and the entity relationship graph are separate views.
+`/tree` displays objectives and distilled knowledge directly in the terminal.
+`/graph` renders the entities and relationships collected from expert replies.
+Relationship extraction makes an additional API call, so enable it when starting:
+
+```text
+.venv\Scripts\python.exe main.py --entities
 ```
 
-Graph rendering requires Mermaid CLI (`mmdc`) on PATH, or its executable
-path in `MERMAID_CLI`. If Puppeteer needs a system browser, set
-`MERMAID_PUPPETEER_CONFIG` to a Puppeteer JSON configuration file.
-Use `--graph` to extract and render every round, or `--entities` to collect
-relationships and `/graph` to render them manually. The PNG is saved
-to `task_result/knowledge_graph.png`; WezTerm can display it inline when
-available. TTS uses `edge-tts` through the current Python interpreter;
+Choose an expert and topic, then answer at least one question. At the next input
+prompt, enter `/graph`. The image opens with the Windows default image viewer;
+WezTerm can display it inline when running inside WezTerm, but is not required.
+Other desktops use their default browser. The saved files are:
+
+- `task_result/knowledge_graph.png`: the latest rendered relationship graph.
+- `task_result/knowledge_graph.mmd`: editable Mermaid source for that graph.
+
+For automatic rendering after every answer, start with `--graph` instead:
+
+```text
+.venv\Scripts\python.exe main.py --graph
+```
+
+刚开始还没回答问题时，图中还没有实体；此时 `/graph` 会解释如何收集数据，
+不是图形功能被删除。未使用 `--entities` 或 `--graph` 的会话仍然会更新知识树，
+但不会额外调用模型收集关系图数据。此时可以用 `/tree` 查看知识树。
+
+The renderer discovers project-local Mermaid CLI automatically, then a global
+`mmdc`, or an explicit executable/script path in `MERMAID_CLI`. A custom browser
+configuration can be selected with `MERMAID_PUPPETEER_CONFIG`. If `mmdc` is
+missing, run `python install.py`; for a missing browser, remove a stale custom
+browser configuration and rerun the installer with browser downloads enabled.
+
+### Edit knowledge and diagrams / 怎么修改
+
+During an interview, type a correction or instruction as a normal answer,
+for example: `Rename the knowledge node about accuracy to Classification accuracy`
+or `Remove the duplicated knowledge node about supervised learning`.
+The extraction agent applies supported add/update/delete operations to the
+knowledge tree. Use `/tree` to check the result, `/undo` to undo a tree change,
+and `/redo` to restore it. These commands affect the knowledge tree, not the
+separately collected entities and relationships. `/refine` asks the model to
+reorganize the tree and makes another API call.
+
+To change only the diagram labels or connections, edit
+`task_result/knowledge_graph.mmd` in a text editor, then render it manually:
+
+```text
+node node_modules/@mermaid-js/mermaid-cli/src/cli.js -i task_result/knowledge_graph.mmd -o task_result/knowledge_graph.png -t dark -b transparent
+```
+
+If using a system browser instead of Puppeteer's downloaded browser, add
+`-p path/to/puppeteer.json`, where the JSON contains an `executablePath` pointing
+to that browser. Open the resulting PNG from Explorer. Editing `.mmd` changes
+only that diagram; it does not modify the knowledge tree or saved relationships.
+The next `/graph` regenerates and overwrites these files from session data.
+Keep a separate copy if you want to retain a hand-edited diagram.
+
+### Save, restore and customize / 保存、恢复和定制
+
+Enter `/dump` to save `snapshot/test-snapshot2.json`, including the knowledge
+tree, conversation, progress and entity relationship data. Restore it with:
+
+```text
+.venv\Scripts\python.exe main.py --restore test-snapshot2
+```
+
+For direct data edits, stop the interview, back up the snapshot, then edit its
+`knowledge_graph` or `entity_graph` sections and restore it. Keep JSON valid and
+preserve node identifiers and relationship source/target names. There is no
+dedicated interactive relationship-edit command; editing a snapshot is the
+persistent way to correct collected entities or relationships.
+
+Use the startup menus to create expert profiles and topics. To edit an existing
+expert, change the fields in `interviewee/*.json`; to edit a topic, change its
+description, objectives or duration in `plan/*.json`. Restart to load the edits.
+Files named `local-*.json` created by the menus stay local and are ignored by Git.
+
+### Voice / 语音
+
+Voice dependencies are installed by default. Launch with `--tts` for spoken
+interviewer replies; type `/asr` to record and transcribe an answer. TTS uses
+`edge-tts` through the current Python interpreter;
 playback uses ffplay when installed, otherwise miniaudio. ASR requires
 a working microphone and `GROQ_API_KEY`. Audio transcription shares the
 common API client and its retry/error handling. Unavailable audio devices
 fall back to text input.
 
-Validation on Windows/Python 3.12 covers 76 automated tests, all 16
+Validation on Windows/Python 3.12 covers 81 automated tests, all 16
 interview-mode combinations, every plan/persona combination, real Gemini
 interview/evaluation/summary, real Groq calls, Mermaid PNG export, speech
 synthesis/playback and transcription of synthesized speech. Microphone
