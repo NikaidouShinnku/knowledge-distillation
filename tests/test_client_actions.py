@@ -6,13 +6,25 @@ from unittest.mock import Mock, patch
 import httpx
 from openai import OpenAI
 
-from llms import ConfigurationError, ModelAPIError, ModelClient, ModelConfig
+from llms import ConfigurationError, ModelAPIError, ModelClient, ModelConfig, default_model
 from knowledge_graph.actions import apply_actions, parse_actions
 from knowledge_graph.model import KnowledgeGraph, Knowledge, Objective
 from common.mermaid_code import generate_mermaid
 
 
 class ClientTests(unittest.TestCase):
+    def test_configured_model_takes_priority(self):
+        with patch('llms.config.load_environment'), patch.dict(os.environ, {'LLM_MODEL': 'ollama/qwen3:0.6b', 'GROQ_API_KEY': 'example'}, clear=True):
+            self.assertEqual(default_model(), 'ollama/qwen3:0.6b')
+
+    def test_gemini_only_key_selects_gemini(self):
+        with patch('llms.config.load_environment'), patch.dict(os.environ, {'LLM_MODEL': '', 'GEMINI_API_KEY': 'example'}, clear=True):
+            self.assertEqual(default_model(), 'gemini/gemini-flash-lite-latest')
+
+    def test_both_keys_have_predictable_priority(self):
+        with patch('llms.config.load_environment'), patch.dict(os.environ, {'GROQ_API_KEY': 'example', 'GEMINI_API_KEY': 'example'}, clear=True):
+            self.assertEqual(default_model(), 'groq/openai/gpt-oss-120b')
+
     def client(self, handler, attempts=3):
         config = ModelConfig('groq', 'test/model', 'https://example.test/v1', 'test-secret', attempts=attempts)
         transport = httpx.MockTransport(handler)

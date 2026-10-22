@@ -255,6 +255,9 @@ def print_markdown(
         console = Console()
 
     markdown = Markdown(markdown_text)
+    if offset is not None:
+        offset = min(max(offset, 0), max(console.width - 40, 0))
+    width = max(1, min(width, console.width - (offset or 0)))
 
     # title = Text(title, style="bold bright_cyan") if title else None
     if title:

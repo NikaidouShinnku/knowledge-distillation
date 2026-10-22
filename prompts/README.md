@@ -16,6 +16,6 @@ read_prompt("summary", language="en-US")
 read_prompt("summary.en-US")
 ```
 
-The default language is `en-US`. `main.py` defaults to English prompts and accepts `--prompt-language zh-CN` to select Chinese prompts. For direct library use, `PROMPT_LANGUAGE` selects the language; explicit language arguments or suffixes override the environment. English templates translate the instructions; original requirements to answer in Chinese still apply.
+The default language is `en-US`. `main.py` defaults to English prompts and accepts `--prompt-language zh-CN` to select Chinese prompts. For direct library use, `PROMPT_LANGUAGE` selects the language; explicit language arguments or suffixes override the environment. English agent templates require English dialogue, reviewer feedback, summaries and extracted knowledge, even with Chinese input or examples. Schema keys, tags, identifiers, proper names and verbatim quotations are preserved.
 
-中文版仅抽取完全相同的公共片段，加载后的内容与原模板一致。各角色、流程和示例仍分别保留。英文版保留原有规则、示例、参数与输出结构，不会自动把原来的中文回答要求改成英文回答。
+中文版仅抽取完全相同的公共片段，加载后的内容与原模板一致。各角色、流程和示例仍分别保留。英文版明确使用英文对话、审核、总结和记录知识，保留示例结构、参数与机器可读格式。

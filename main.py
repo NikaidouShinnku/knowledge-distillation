@@ -168,7 +168,7 @@ if __name__ == '__main__':
     parser.add_argument('--auto', action='store_true', help='Do a simulation')
     parser.add_argument('--tts', action='store_true', help='Enable tts')
     parser.add_argument('--restore', type=str, help='restore the task', default="")
-    parser.add_argument('--generation-mode', type=str, choices=["conversation", "solo"], help='Use solo for speed or conversation for question review', default="solo")
+    parser.add_argument('--generation-mode', type=str, choices=["conversation", "solo"], help='Use conversation for group discussion or solo for speed', default="conversation")
     args = parser.parse_args()
 
     from pathlib import Path
@@ -275,17 +275,17 @@ if __name__ == '__main__':
             for i in range(5):
                 with processing("Drafting question"):
                     question = generate_agent.generate_question(stream=args.stream)
-                    question = show_response(question, title="Question draft", offset=term_col//2,width=60, title_align="right", border_color="blue")
+                    question = show_response(question, title="Question proposer / Group discussion", offset=term_col//2,width=60, title_align="right", border_color="blue")
                 review_history.append(role="Asker", content=question)
                 with processing("Reviewing question"):
                     verification, answer = review_generation_agent.generate_review()
                 if verification.strip().lower() != "yes":
                     review_history.append(role="Reviewer", content=answer)
-                    show_response("[REVISE]\n"+answer, title="Question reviewer", offset=term_col//2, width=60, title_align="left", border_color="blue")
+                    show_response("[REVISE]\n"+answer, title="Question reviewer / Group discussion", offset=term_col//2, width=60, title_align="left", border_color="blue")
                 if verification.strip().lower() == "yes":
                     approved = True
                     review_history.append(role="Reviewer", content="该问题被审核通过")
-                    show_response("[OK]", title="Question reviewer", offset=term_col // 2, width=60, title_align="left", border_color="blue")
+                    show_response("[OK] " + (answer.strip() or "Approved for the interview."), title="Question reviewer / Group discussion", offset=term_col // 2, width=60, title_align="left", border_color="blue")
                     break
             if not approved:
                 print("问题连续五次未通过审核，访谈停止；已有知识树已保留。")

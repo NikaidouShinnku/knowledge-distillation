@@ -3,6 +3,12 @@ from rich.text import Text
 from itertools import cycle
 from contextlib import contextmanager
 from time import perf_counter
+from rich.console import Console
+from rich.live import Live
+from rich.markdown import Markdown
+from rich.panel import Panel
+from rich.padding import Padding
+from rich import box
 
 
 @contextmanager
@@ -25,13 +31,34 @@ def show_response(
         border_color: str = "dark_cyan"
 ):
     if not isinstance(res, str):
-        print(f"[{title}]", flush=True)
         chunks = []
-        for chunk in res:
-            if chunk:
-                print(chunk, end="", flush=True)
-                chunks.append(chunk)
-        print()
+        if no_pretty:
+            for chunk in res:
+                if chunk:
+                    print(chunk, end="", flush=True)
+                    chunks.append(chunk)
+            print()
+            return "".join(chunks)
+        console = Console()
+        padding = min(max(offset or 0, 0), max(console.width - 40, 0))
+        panel_width = max(1, min(width, console.width - padding))
+        if offset is None:
+            padding = max((console.width - panel_width) // 2, 0)
+
+        def render():
+            panel = Panel(Markdown("".join(chunks) or "Waiting for reply..."), title=Text(title, style="bold cyan"), title_align=title_align, width=panel_width, border_style=border_color, box=box.ROUNDED, padding=(1, 1))
+            return Padding(panel, (0, 0, 0, padding))
+
+        try:
+            with Live(render(), console=console, refresh_per_second=8, vertical_overflow="visible") as live:
+                for chunk in res:
+                    if chunk:
+                        chunks.append(chunk)
+                        live.update(render())
+        finally:
+            close = getattr(res, "close", None)
+            if close:
+                close()
         return "".join(chunks)
     if isinstance(res, str):
         if no_pretty:

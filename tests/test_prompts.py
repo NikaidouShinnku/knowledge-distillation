@@ -11,6 +11,14 @@ from prompts import LANGUAGES, prompt_directory, read_prompt
 
 
 class PromptTests(unittest.TestCase):
+    def test_english_agents_explicitly_require_english(self):
+        for name in ('roleplay_generate', 'professional_generate', 'roleplay_distill', 'roleplay_layer_distill', 'review_generate_reply', 'summary', 'critique'):
+            with self.subTest(name=name):
+                text = read_prompt(name, 'en-US')
+                self.assertIn('Write all natural-language output in English', text)
+                self.assertNotIn('Default to Chinese', text)
+                self.assertNotIn('Chinese is used by default', text)
+
     def test_catalog_hashes_and_rendering(self):
         manifest = json.loads((prompt_directory / 'manifest.json').read_text(encoding='utf-8'))
         self.assertEqual(len(manifest['zh-CN']), 23)

@@ -51,7 +51,8 @@ This was a personal/internship R&D project exploring multi-agent knowledge extra
 
 Prompt templates are grouped into bilingual bundles under `prompts/`. The
 default is English. Use `--prompt-language zh-CN` for Chinese prompts and the
-original Chinese style menu. Original response-language requirements still apply.
+original Chinese style menu. English prompts require English dialogue, reviewer
+feedback, summaries and extracted knowledge, including when the user replies in Chinese.
 See [prompt names and usage](prompts/README.md).
 
 ```powershell
@@ -63,6 +64,39 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 Set your keys in the local `.env` file. Existing environment variables take
 precedence. `.env` is ignored by Git and excluded from source exports.
 
+### API keys (required / 必须配置)
+
+This repository does not include shared API keys or a bundled offline model.
+Each user must supply their own API key before using a cloud model. Downloading
+the repository or installing dependencies does not configure a key automatically.
+
+使用云端模型前，需要自行申请 API 密钥并填入项目根目录的 `.env` 文件，
+与 `main.py` 放在同一目录。仓库只提供空白的 `.env.example`，不包含可用密钥。
+复制 `.env.example` 后，请编辑 `.env`；只编辑 `.env.example` 不会生效。
+至少配置下面的一家，并将示例占位值替换为自己的真实密钥。
+
+For Groq:
+
+```dotenv
+LLM_MODEL=groq/openai/gpt-oss-120b
+GROQ_API_KEY=your-own-groq-api-key
+```
+
+For Gemini instead:
+
+```dotenv
+LLM_MODEL=gemini/gemini-flash-lite-latest
+GEMINI_API_KEY=your-own-gemini-api-key
+```
+
+`LLM_MODEL` may be left empty to select an existing Groq key first, then Gemini.
+If you set `LLM_MODEL` or pass `--model`, configure the corresponding provider's
+key. Both keys can coexist in the same `.env` file. A missing-key error such as
+`Set GROQ_API_KEY in the local .env file` means that the selected model's key is
+missing or empty; installing more packages will not fix it. Free-tier access is
+subject to the provider's quotas and availability. Keep `.env` private when
+sharing the project, and preserve it when updating or re-extracting a ZIP.
+
 ```powershell
 .\.venv\Scripts\python.exe main.py --model groq/openai/gpt-oss-120b
 .\.venv\Scripts\python.exe main.py --model gemini/gemini-flash-lite-latest
@@ -71,14 +105,21 @@ precedence. `.env` is ignored by Git and excluded from source exports.
 Startup asks who you are, lists saved expert names, and offers
 `None of these / 都不是我` to collect and save a new expert profile.
 Next, choose an existing interview topic or create one with your own objectives.
+For a realistic demonstration, choose Alex Chen (Machine Learning Engineer)
+with ML Fundamentals, or Emily Parker (Early Childhood Educator) with Fundamentals
+of Early Childhood Education. Both are fictional example profiles. The original
+Maria and Arthas profiles remain available.
 Your new profiles and topics are local files ignored by Git. To skip these menus,
 pass `--interviewee maria --task organism-classification-distill-plan`.
 Restoring a snapshot skips the setup menus and preserves its expert, topic and tone.
 
 The English style menu includes Serious, Humorous, Pirate, Shakespearean and Neutral.
-The default `solo` mode updates the knowledge tree and generates the next question
-with two model calls per ordinary turn. For the original group discussion and
-question review, use `--generation-mode conversation`. Entity relationship
+The default `conversation` mode shows the question proposer and reviewer in
+separate group-discussion panels, followed by the approved interviewer question.
+Streaming replies retain the bordered panels. Question review adds a model call
+and may request revisions. For fewer calls, select `--generation-mode solo`,
+which updates the knowledge tree and generates the next question with two model
+calls per ordinary turn. Entity relationship
 extraction is optional via `--entities` and is also enabled by `--graph`.
 Question review, entity extraction and evaluation each add model calls.
 Replies stream by default; `--no-stream` waits for the complete reply.
@@ -86,7 +127,10 @@ Processing stages show elapsed time, and rate-limit retries show their wait time
 
 Both providers have a free tier with quotas; availability depends on your
 account and model. No automatic fallback to another provider is performed.
-The default model comes from `LLM_MODEL`, otherwise Groq GPT-OSS 120B.
+An explicit `--model` takes priority, followed by a non-empty `LLM_MODEL`.
+Without either, an existing Groq key selects Groq GPT-OSS 120B; otherwise an
+existing Gemini key selects Gemini Flash Lite. This selects a configured
+provider at startup; failed requests do not silently switch providers.
 Legacy model names produce a migration message rather than silently
 changing the provider or billing behavior.
 
@@ -143,7 +187,7 @@ a working microphone and `GROQ_API_KEY`. Audio transcription shares the
 common API client and its retry/error handling. Unavailable audio devices
 fall back to text input.
 
-Validation on Windows/Python 3.12 covers 68 automated tests, all 16
+Validation on Windows/Python 3.12 covers 76 automated tests, all 16
 interview-mode combinations, every plan/persona combination, real Gemini
 interview/evaluation/summary, real Groq calls, Mermaid PNG export, speech
 synthesis/playback and transcription of synthesized speech. Microphone

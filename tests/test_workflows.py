@@ -76,11 +76,15 @@ class WorkflowTests(unittest.TestCase):
             result['saved_snapshot'] = json.loads(snapshot.read_text(encoding='utf-8')) if snapshot.exists() else None
             return result, evaluation, speech, graph, recorded
 
-    def test_default_path_avoids_optional_model_calls(self):
+    def test_default_path_includes_group_review(self):
         result, *_ = self.run_case()
-        self.assertEqual(result['args'].generation_mode, 'solo')
+        self.assertEqual(result['args'].generation_mode, 'conversation')
         self.assertTrue(result['args'].stream)
         self.assertEqual(result['args'].prompt_language, 'en-US')
+        self.assertEqual(result['api_calls'], dict(generation=2, review=1, distillation=1, entities=0))
+
+    def test_solo_remains_an_explicit_fast_option(self):
+        result, *_ = self.run_case(flags=['--generation-mode', 'solo'])
         self.assertEqual(result['api_calls'], dict(generation=2, review=0, distillation=1, entities=0))
 
     def test_optional_relationship_extraction(self):

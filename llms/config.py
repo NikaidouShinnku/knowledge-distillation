@@ -38,7 +38,13 @@ def load_environment():
 
 def default_model():
     load_environment()
-    return os.getenv("LLM_MODEL", "groq/openai/gpt-oss-120b")
+    selected = os.getenv("LLM_MODEL", "").strip()
+    if selected:
+        return selected
+    for key, model in (("GROQ_API_KEY", "groq/openai/gpt-oss-120b"), ("GEMINI_API_KEY", "gemini/gemini-flash-lite-latest")):
+        if os.getenv(key, "").strip():
+            return model
+    return "groq/openai/gpt-oss-120b"
 
 
 @dataclass(frozen=True)
