@@ -24,7 +24,7 @@ except (OSError, ModuleNotFoundError):
 
 from prompt_toolkit.shortcuts import prompt
 
-recording = HTML("<ansired>  </ansired> ")
+recording = HTML("<ansired>[REC]</ansired> ")
 
 
 class SoundDeviceError(Exception):
@@ -73,17 +73,17 @@ class Voice:
         else:
             cnt = int(self.pct * 10)
         cnt = 5
-        bar = "░" * cnt + "█" * (num - cnt)
+        bar = "#" * cnt + "-" * (num - cnt)
         # bar = "󰹞" * cnt + "󰹟" * (num - cnt)
         bar = bar[:num]
 
         dur = time.time() - self.start_time
         # return f"{red_bold(' ')} press ↵ for done {dur:.1f}sec {bar}"
         return HTML(
-            f"<ansired>  </ansired> "
-            f"<ansiyellow>  {dur:.1f} </ansiyellow> "
+            f"<ansired>[REC]</ansired> "
+            f"<ansiyellow>{dur:.1f}s</ansiyellow> "
             f"<ansibrightcyan>{bar}</ansibrightcyan> "
-            "<ansired> 󰌑 </ansired>"
+            "<ansired>Press Enter to finish</ansired>"
         )
 
     def record_and_transcribe(self, history=None, language=None):

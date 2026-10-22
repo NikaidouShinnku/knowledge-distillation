@@ -3,7 +3,7 @@ import json
 import shutil
 
 import pyperclip
-from prompt_toolkit import PromptSession, HTML,prompt
+from prompt_toolkit import PromptSession, HTML
 from prompt_toolkit.history import FileHistory
 
 from agent.critique import CritiqueAgent
@@ -26,6 +26,8 @@ from agent.generation import GenerationAgent
 from progress.progress import Progress
 from prompts import read_prompt
 from tts import tts
+from common.setup import select_expert, select_topic, select_tone
+from common.show_utils import processing
 
 from common.mermaid_code import generate_mermaid
 def hello():
@@ -122,7 +124,7 @@ def show_progress():
         obj_completed=p["objectives_completed_count"],
         obj_total=p["objectives_total"],
         rounds_completed=p["round_total"],
-        rounds_remaining=p["rounds_remaining"] if p["rounds_remaining"] != 'Unknown' else '',
+        rounds_remaining=p["rounds_remaining"] if p["rounds_remaining"] != 'Unknown' else '?',
         prompt_tokens = usage['prompt_tokens'],
         completion_tokens = usage['completion_tokens'],
         total_tokens = usage['total_tokens'],
@@ -158,13 +160,15 @@ if __name__ == '__main__':
     parser.add_argument('--model', default=None, type=str, help='Model name')
     parser.add_argument('--evaluate', action='store_true', help='Evaluate each answer with an extra model call')
     parser.add_argument('--graph', action='store_true', help='Render graph with Mermaid CLI and WezTerm')
-    parser.add_argument('--stream', action='store_true', help='Run in stream mode')
-    parser.add_argument('--task',  type=str, help='Choose the task', default="organism-classification-distill-plan")
-    parser.add_argument('--interviewee', type=str, help='Name of the interviewee', default="maria")
+    parser.add_argument('--stream', action=argparse.BooleanOptionalAction, default=True, help='Stream interviewer replies')
+    parser.add_argument('--task', type=str, help='Skip the topic menu and use this plan')
+    parser.add_argument('--interviewee', type=str, help='Skip the expert menu and use this profile')
+    parser.add_argument('--prompt-language', choices=['en-US', 'zh-CN'], default='en-US', help='Prompt and style language')
+    parser.add_argument('--entities', action='store_true', help='Extract entity relationships with an extra model call')
     parser.add_argument('--auto', action='store_true', help='Do a simulation')
     parser.add_argument('--tts', action='store_true', help='Enable tts')
     parser.add_argument('--restore', type=str, help='restore the task', default="")
-    parser.add_argument('--generation-mode', type=str, choices=["conversation", "solo"],help='restore the task', default="conversation")
+    parser.add_argument('--generation-mode', type=str, choices=["conversation", "solo"], help='Use solo for speed or conversation for question review', default="solo")
     args = parser.parse_args()
 
     from pathlib import Path
@@ -173,15 +177,19 @@ if __name__ == '__main__':
     Path("snapshot").mkdir(exist_ok=True)
     Path("task_result").mkdir(exist_ok=True)
     hello()
+    os.environ['PROMPT_LANGUAGE'] = args.prompt_language
+    if not args.restore:
+        args.interviewee = args.interviewee or select_expert()
+        args.task = args.task or select_topic()
 
-    valid_tones = ['严肃', '幽默', '海盗式', '甄嬛传风格', '莎士比亚式', "鲁迅风格", '无建议']
     tone = None
     entity_relationship_triple = EntityRelationTriple()
     tree_manager = KnowledgeTreeManager()
     chat_history = ChatHistory()
     review_history = ChatHistory()
-    distilled_tree = KnowledgeGraph.restore(f"{plan_directory()}/{args.task}")
-    progress = Progress(total_minutes=distilled_tree.estimated_minute, objectives_count=len(distilled_tree.objectives))
+    if not args.restore:
+        distilled_tree = KnowledgeGraph.restore(f"{plan_directory()}/{args.task}")
+        progress = Progress(total_minutes=distilled_tree.estimated_minute, objectives_count=len(distilled_tree.objectives))
 
     requested_model = args.model
     if args.restore:
@@ -198,16 +206,11 @@ if __name__ == '__main__':
     ModelConfig.resolve(args.model)
     tree_manager.push_back(distilled_tree)
 
-    while not tone:
-        tone_input_index = prompt(HTML("你希望萃取专家的语气风格是:\n<ansired>1.严肃</ansired>\n<ansiyellow>2.幽默</ansiyellow>\n<ansiblue>3.海盗式</ansiblue>\n<ansigreen>4.甄嬛传风格</ansigreen>\n<ansicyan>5.莎士比亚式</ansicyan>\n<ansiyellow>6.鲁迅风格</ansiyellow>\n7.默认 \n>> "))
-
-        try:
-            index = int(tone_input_index or len(valid_tones))
-            if 0 < index <= len(valid_tones):
-                tone = valid_tones[index-1]
-        except ValueError:
-            pass
-
+    if not tone:
+        tone = select_tone(args.prompt_language)
+    print(f"Model: {args.model} | Prompts: {args.prompt_language} | Mode: {args.generation_mode}")
+    if args.generation_mode == 'solo':
+        print("Fast interview: knowledge updates and questions. Use --generation-mode conversation for question review.")
     distill_agent = DistillAgent(
         name=args.task+"-distill-agent",
         distilled_tree=distilled_tree,
@@ -270,25 +273,31 @@ if __name__ == '__main__':
         if args.generation_mode == "conversation":
             approved = False
             for i in range(5):
-                question = generate_agent.generate_question(stream=args.stream)
-                question = show_response(question, title="问题发起者（小组讨论）", offset=term_col//2,width=60, title_align="right", border_color="blue")
+                with processing("Drafting question"):
+                    question = generate_agent.generate_question(stream=args.stream)
+                    question = show_response(question, title="Question draft", offset=term_col//2,width=60, title_align="right", border_color="blue")
                 review_history.append(role="Asker", content=question)
-                verification, answer = review_generation_agent.generate_review()
+                with processing("Reviewing question"):
+                    verification, answer = review_generation_agent.generate_review()
                 if verification.strip().lower() != "yes":
                     review_history.append(role="Reviewer", content=answer)
-                    show_response("🙅 \n"+answer, title="问题审核员（小组讨论）", offset=term_col//2, width=60, title_align="left", border_color="blue")
+                    show_response("[REVISE]\n"+answer, title="Question reviewer", offset=term_col//2, width=60, title_align="left", border_color="blue")
                 if verification.strip().lower() == "yes":
                     approved = True
                     review_history.append(role="Reviewer", content="该问题被审核通过")
-                    show_response(" ", title="问题审核员（小组讨论）", offset=term_col // 2, width=60, title_align="left", border_color="blue")
+                    show_response("[OK]", title="Question reviewer", offset=term_col // 2, width=60, title_align="left", border_color="blue")
                     break
             if not approved:
                 print("问题连续五次未通过审核，访谈停止；已有知识树已保留。")
                 break
         else:
-            question = generate_agent.generate_question(stream=args.stream)
+            with processing("Preparing question"):
+                question = generate_agent.generate_question(stream=args.stream)
+                question = show_response(res=question, title='Interviewer', title_align="right")
+                review_history.append(role="Asker", content=question)
 
-        question = show_response(res=question, title=f'  萃取专家', title_align="right")
+        if args.generation_mode == 'conversation':
+            question = show_response(res=question, title='Interviewer', title_align="right")
         chat_history.append(role="萃取专家", content=question)
         if args.tts:
             try:
@@ -297,12 +306,12 @@ if __name__ == '__main__':
                 print(f"TTS unavailable: {exc}; continuing with text")
         if args.auto:
             user_input = simulate_agent.simulate_response()
-            show_response(user_input, title="auto-reply  ", title_align='left')
+            show_response(user_input, title="Expert (simulation)", title_align='left')
             turn += 1
         else:
             try:
                 session = PromptSession(
-                    HTML(f'<ansicyan><b> {args.interviewee}  >> </b></ansicyan>'),
+                    HTML('<ansicyan><b>{} &gt;&gt; </b></ansicyan>').format(generate_agent.interviewee_name),
                     history=FileHistory('history.txt')
                 )
                 while True:
@@ -327,7 +336,7 @@ if __name__ == '__main__':
                     elif user_input == "/auto":
                         args.auto = True
                         user_input = simulate_agent.simulate_response()
-                        show_response(user_input, title="auto-reply  ", title_align='left')
+                        show_response(user_input, title="Expert (simulation)", title_align='left')
                         turn += 1
                         break
                     elif user_input.startswith("/model "):
@@ -409,14 +418,17 @@ if __name__ == '__main__':
 
 
         chat_history.append(role=args.interviewee, content=user_input)
-        try:
-            entity_extraction_agent.extract_triplet(turn=progress.get_round())
-        except (ValueError, ModelAPIError) as exc:
-            print(f"关系抽取失败，继续更新知识树: {exc}")
+        if args.entities or args.graph:
+            try:
+                with processing("Extracting entity relationships"):
+                    entity_extraction_agent.extract_triplet(turn=progress.get_round())
+            except (ValueError, ModelAPIError) as exc:
+                print(f"关系抽取失败，继续更新知识树: {exc}")
         if args.graph:
             show_graph()
 
-        distill_agent.update_tree(turn=progress.get_round())
+        with processing("Updating knowledge tree"):
+            distill_agent.update_tree(turn=progress.get_round())
         tree_manager.push_back(distilled_tree)
         if args.evaluate:
             critique_agent.rate_response()
@@ -430,7 +442,8 @@ if __name__ == '__main__':
             if args.graph:
                 show_graph()
             show_progress()
-            show_response(res=generate_agent.end_chat(), title=f'  萃取专家', title_align="right")
+            with processing("Preparing closing summary"):
+                show_response(res=generate_agent.end_chat(), title='Interviewer', title_align="right")
             break
         if args.auto:
             if turn % 3 == 0:

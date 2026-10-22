@@ -32,7 +32,7 @@ def read_prompt(name: str, language: str | None = None):
                 raise ValueError("Conflicting prompt languages")
             language = explicit_language
             break
-    language = language or os.environ.get("PROMPT_LANGUAGE", "zh-CN")
+    language = language or os.environ.get("PROMPT_LANGUAGE", "en-US")
     if language not in LANGUAGES:
         raise ValueError(f"Unsupported prompt language: {language}")
     try:

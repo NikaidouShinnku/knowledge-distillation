@@ -1,6 +1,18 @@
 from consoles import print_markdown
 from rich.text import Text
 from itertools import cycle
+from contextlib import contextmanager
+from time import perf_counter
+
+
+@contextmanager
+def processing(label):
+    started = perf_counter()
+    print(f"[{label}...]", flush=True)
+    try:
+        yield
+    finally:
+        print(f"[{label}: {perf_counter() - started:.1f}s]", flush=True)
 
 def show_response(
         res,
@@ -13,6 +25,7 @@ def show_response(
         border_color: str = "dark_cyan"
 ):
     if not isinstance(res, str):
+        print(f"[{title}]", flush=True)
         chunks = []
         for chunk in res:
             if chunk:
@@ -36,4 +49,4 @@ def to_progress_bar(
 ):
     done_ratio = min(1, max(0, n_done / n_total)) if n_total > 0 else 0
     done_bar_count = round(done_ratio * bar_len)
-    return "󰹞" * done_bar_count + "󰹟" * (bar_len - done_bar_count)
+    return "[" + "#" * done_bar_count + "-" * (bar_len - done_bar_count) + "]"

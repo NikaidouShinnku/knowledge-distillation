@@ -35,7 +35,7 @@ class PromptTests(unittest.TestCase):
 
     def test_default_and_environment(self):
         with patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(read_prompt('summary'), read_prompt('summary.zh-CN'))
+            self.assertEqual(read_prompt('summary'), read_prompt('summary.en-US'))
         with patch.dict(os.environ, {'PROMPT_LANGUAGE': 'en-US'}):
             self.assertEqual(read_prompt('summary'), read_prompt('summary.en-US'))
             self.assertEqual(read_prompt('summary.zh-CN'), read_prompt('summary', 'zh-CN'))

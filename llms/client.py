@@ -53,6 +53,7 @@ class ModelClient:
                         delay = min(60, max(1, sum(float(value) * units[unit] for value, unit in values)))
                     else:
                         delay = 60 if status == 429 else min(8, 2 ** attempt)
+                print(f"[{self.config.provider}: {'rate limited' if status == 429 else 'temporary API failure'}; retry {attempt + 2}/{self.config.attempts} in {delay:.1f}s]", flush=True)
                 self.sleeper(delay)
 
     def models(self):

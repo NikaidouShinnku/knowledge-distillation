@@ -115,8 +115,9 @@ class RegressionTests(unittest.TestCase):
         import runpy
         from contextlib import ExitStack
         with ExitStack() as stack:
-            stack.enter_context(patch('sys.argv', ['main.py', '--auto', '--model', 'ollama/test']))
-            stack.enter_context(patch('prompt_toolkit.prompt', return_value=''))
+            stack.enter_context(patch('sys.argv', ['main.py', '--auto', '--model', 'ollama/test', '--interviewee', 'maria', '--task', 'organism-classification-distill-plan']))
+            stack.enter_context(patch('common.setup.select_tone', return_value='Serious'))
+            stack.enter_context(patch.dict('os.environ', {}))
             stack.enter_context(patch('agent.generation.chat', return_value='<reply>Question?</reply>'))
             stack.enter_context(patch('agent.generation_review.chat', return_value='<verify>Yes</verify><reply>OK</reply>'))
             stack.enter_context(patch('agent.simulation.chat', return_value='Expert answer'))
@@ -135,8 +136,9 @@ class RegressionTests(unittest.TestCase):
         import runpy
         from contextlib import ExitStack
         with ExitStack() as stack:
-            stack.enter_context(patch('sys.argv', ['main.py', '--auto', '--stream', '--model', 'ollama/test']))
-            stack.enter_context(patch('prompt_toolkit.prompt', return_value=''))
+            stack.enter_context(patch('sys.argv', ['main.py', '--auto', '--stream', '--model', 'ollama/test', '--generation-mode', 'conversation', '--interviewee', 'maria', '--task', 'organism-classification-distill-plan']))
+            stack.enter_context(patch('common.setup.select_tone', return_value='Serious'))
+            stack.enter_context(patch.dict('os.environ', {}))
             stack.enter_context(patch('agent.generation.chat', side_effect=lambda **kw: iter(['Question', '?']) if kw.get('stream') else 'Goodbye'))
             stack.enter_context(patch('agent.generation_review.chat', return_value='<verify>Yes</verify><reply>OK</reply>'))
             stack.enter_context(patch('agent.simulation.chat', return_value='Expert answer'))
@@ -154,8 +156,9 @@ class RegressionTests(unittest.TestCase):
         import runpy
         from contextlib import ExitStack
         with ExitStack() as stack:
-            stack.enter_context(patch('sys.argv', ['main.py', '--auto', '--model', 'ollama/test']))
-            stack.enter_context(patch('prompt_toolkit.prompt', return_value=''))
+            stack.enter_context(patch('sys.argv', ['main.py', '--auto', '--no-stream', '--model', 'ollama/test', '--generation-mode', 'conversation', '--interviewee', 'maria', '--task', 'organism-classification-distill-plan']))
+            stack.enter_context(patch('common.setup.select_tone', return_value='Serious'))
+            stack.enter_context(patch.dict('os.environ', {}))
             stack.enter_context(patch('agent.generation.chat', return_value='Rejected question'))
             stack.enter_context(patch('agent.generation_review.chat', return_value='<verify>No</verify><reply>Try again</reply>'))
             simulate = stack.enter_context(patch('agent.simulation.chat'))

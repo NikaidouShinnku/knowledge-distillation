@@ -8,3 +8,5 @@ task_result/current_distilled_tree.json
 task_result/*.png
 question.mp3
 question.vtt
+interviewee/local-*.json
+plan/local-*.json

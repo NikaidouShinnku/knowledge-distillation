@@ -50,8 +50,8 @@ This was a personal/internship R&D project exploring multi-agent knowledge extra
 ## Run (Windows / Python 3.12)
 
 Prompt templates are grouped into bilingual bundles under `prompts/`. The
-default remains Chinese; set `PROMPT_LANGUAGE=en-US` in `.env` to load the
-English translations. Original response-language requirements still apply.
+default is English. Use `--prompt-language zh-CN` for Chinese prompts and the
+original Chinese style menu. Original response-language requirements still apply.
 See [prompt names and usage](prompts/README.md).
 
 ```powershell
@@ -67,6 +67,22 @@ precedence. `.env` is ignored by Git and excluded from source exports.
 .\.venv\Scripts\python.exe main.py --model groq/openai/gpt-oss-120b
 .\.venv\Scripts\python.exe main.py --model gemini/gemini-flash-lite-latest
 ```
+
+Startup asks who you are, lists saved expert names, and offers
+`None of these / 都不是我` to collect and save a new expert profile.
+Next, choose an existing interview topic or create one with your own objectives.
+Your new profiles and topics are local files ignored by Git. To skip these menus,
+pass `--interviewee maria --task organism-classification-distill-plan`.
+Restoring a snapshot skips the setup menus and preserves its expert, topic and tone.
+
+The English style menu includes Serious, Humorous, Pirate, Shakespearean and Neutral.
+The default `solo` mode updates the knowledge tree and generates the next question
+with two model calls per ordinary turn. For the original group discussion and
+question review, use `--generation-mode conversation`. Entity relationship
+extraction is optional via `--entities` and is also enabled by `--graph`.
+Question review, entity extraction and evaluation each add model calls.
+Replies stream by default; `--no-stream` waits for the complete reply.
+Processing stages show elapsed time, and rate-limit retries show their wait time.
 
 Both providers have a free tier with quotas; availability depends on your
 account and model. No automatic fallback to another provider is performed.
@@ -85,10 +101,10 @@ Commands during an interview:
 - `/undo` and `/redo` affect the knowledge tree and its progress.
 - `/quit` or `/exit` ends the session.
 
-`--auto` simulates an expert and still uses the selected API. `--stream`
-streams question generation; extraction uses complete JSON responses.
-`--evaluate` enables answer scoring with an extra model call. A question
-rejected five times stops the interview rather than reaching the expert.
+`--auto` simulates an expert and still uses the selected API. Extraction uses
+complete JSON responses. `--evaluate` enables answer scoring with an extra model
+call. In conversation mode, a question rejected five times stops the interview
+rather than reaching the expert.
 
 The common client also supports `deepseek/<model>`, `qwen/<model>`,
 `moonshot/<model>`, `baidu/<model>`, `ollama/<model>`, and
@@ -118,7 +134,8 @@ Optional voice and graph dependencies:
 Graph rendering requires Mermaid CLI (`mmdc`) on PATH, or its executable
 path in `MERMAID_CLI`. If Puppeteer needs a system browser, set
 `MERMAID_PUPPETEER_CONFIG` to a Puppeteer JSON configuration file.
-Use `--graph` to render every round, or `/graph` manually. The PNG is saved
+Use `--graph` to extract and render every round, or `--entities` to collect
+relationships and `/graph` to render them manually. The PNG is saved
 to `task_result/knowledge_graph.png`; WezTerm can display it inline when
 available. TTS uses `edge-tts` through the current Python interpreter;
 playback uses ffplay when installed, otherwise miniaudio. ASR requires
@@ -126,7 +143,7 @@ a working microphone and `GROQ_API_KEY`. Audio transcription shares the
 common API client and its retry/error handling. Unavailable audio devices
 fall back to text input.
 
-Validation on Windows/Python 3.12 covers 52 automated tests, all 16
+Validation on Windows/Python 3.12 covers 68 automated tests, all 16
 interview-mode combinations, every plan/persona combination, real Gemini
 interview/evaluation/summary, real Groq calls, Mermaid PNG export, speech
 synthesis/playback and transcription of synthesized speech. Microphone
